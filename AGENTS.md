@@ -15,6 +15,11 @@ make data                            # Regenerate .properties and .bin from JSON
 make data-properties                 # Regenerate address_code.properties only
 make data-timeline                   # Regenerate address_code_timeline.bin only
 docker build -t chinese-id-validator .  # Docker build (runs mvn verify inside)
+mvn spotless:check                   # Style check (bound to validate phase, runs before any build/test)
+mvn spotless:apply                   # Auto-format all Java sources (run before committing)
+mvn compile spotbugs:check           # Static analysis (bytecode-level bug patterns, bound to verify)
+mvn -Pbenchmark package -DskipTests  # Build JMH benchmarks jar (target/*-benchmarks.jar)
+java -jar target/*-benchmarks.jar    # Run JMH benchmarks locally
 ```
 
 ## Maven Coordinates
@@ -22,8 +27,20 @@ docker build -t chinese-id-validator .  # Docker build (runs mvn verify inside)
 - groupId: `io.github.fangfengxiang`
 - artifactId: `chinese-id-validator`
 - version: `0.1.0`
-- Java: 11+
+- Java: 8+ (bytecode target `--release 8`; build toolchain JDK 21 — Spotless/palantir-java-format requires it)
 - Runtime dependencies: **zero** (only test-scoped: Gson, JUnit 5)
+
+## CI/CD
+
+- `ci.yml` (push/PR): style-check gates everything, then in parallel — static-analysis (SpotBugs), unit-test → integration-test chain (serial), compat-test matrix; `report` aggregates compat results into a Markdown table on the Summary page
+- compat-test is a matrix (JDK 8/11/17/21/25, native Temurin via setup-java) running the full test suite per JVM, with Spotless/SpotBugs/JaCoCo skipped (same bytecode, checked once by dedicated jobs)
+- `memory.yml` (CI 全绿后 workflow_run 自动触发 + workflow_dispatch 手动): memory-probe matrix (same 5 JDKs) measuring data memory footprint per JVM via direct javac (no Maven); informational only, never gates; its `report` job renders the per-JDK memory table. A release-comparison gate (vs latest Central artifact + manual approval via environment) is planned once a second release exists
+- `benchmark.yml` (CI 全绿后 workflow_run 自动触发 + workflow_dispatch 手动): JMH benchmark matrix (same 5 JDKs) running benchmarks from `src/jmh/java` (`-Pbenchmark` profile builds `target/*-benchmarks.jar`) per JVM; its `report` job pivots results into a cross-JDK comparison table (benchmark rows × JDK columns). Not in PR CI — shared-runner timing noise exceeds regression signals; raw `jmh-result-jdk*.json` + text artifacts retained
+- JDK 8 Maven builds: `jdk8-skip-toolchain` profile (auto-activated on JDK 1.8) unbinds Spotless and SpotBugs — their mojos are Java 11+ bytecode and fail to load on JDK 8 (`-D*.skip` can't help; class loading precedes skip checks). maven-compiler-plugin auto-falls back from `--release 8` to `source/target 1.8` on JDK 8
+- Style: Spotless + palantir-java-format (4-space indent; `cn.*` imports stay before `java.*` — no `importOrder` configured)
+- Static analysis: SpotBugs (effort=Max, threshold=Medium), bound to `verify` so local `mvn verify` enforces it; bytecode-level complement to source-level checks
+- Coverage: JaCoCo reports uploaded to Codecov from both test jobs (`unit` / `integration` flags)
+- Security: Dependabot weekly for actions + maven
 
 ## Architecture
 
@@ -44,7 +61,7 @@ src/main/java/cn/chineseid/validator/
 
 ## Code Style
 
-- Java 11+, no Lombok, no annotation processors
+- Java 8+ source compatible (no `var`, no `List.of`/`Map.of`/`Files.readString` — `--release 8` enforces at compile time), no Lombok, no annotation processors
 - Javadoc on all public API methods (generates `*-javadoc.jar` for Maven Central)
 - Error handling: invalid input throws `IllegalArgumentException`, runtime issues return `null` or `false`
 - Collections are immutable after construction (defensive copies in constructors)

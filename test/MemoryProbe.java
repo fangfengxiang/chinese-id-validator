@@ -1,8 +1,10 @@
 import cn.chineseid.validator.data.DataProvider;
+import cn.chineseid.validator.model.TimelineEntry;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,6 +35,9 @@ public class MemoryProbe {
         System.out.println();
 
         // ---- 阶段 0：基线（未加载业务数据）----
+        // 预热并丢弃首次读数：首次 measure() 会初始化 MXBean 基础设施并触发 JIT，
+        // 其开销残留在堆里会抬高基线（JDK 8 上实测导致 .properties 增量算成负数）
+        measure();
         long baseline = measure();
         System.out.println("=== 阶段 0：JVM 基线（未加载业务数据）===");
         System.out.printf("已用堆内存: %s%n%n", fmt(baseline));
@@ -70,7 +75,7 @@ public class MemoryProbe {
         int timelineCodeCount = 0;
         int timelineEntryCount = 0;
         for (Integer code : allCodes.keySet()) {
-            var entries = dp.getTimeline(code);
+            List<TimelineEntry> entries = dp.getTimeline(code);
             if (entries != null && !entries.isEmpty()) {
                 timelineCodeCount++;
                 timelineEntryCount += entries.size();
@@ -101,6 +106,9 @@ public class MemoryProbe {
             System.out.printf(".bin 加载后:                 %s%n", fmt(afterBin));
             System.out.printf("  └ timelineMap 增量:       %s%n", fmt(binDelta));
             System.out.printf("  └ 总增量(.properties+.bin): %s%n", fmt(afterBin - baseline));
+            // 机器可读行：CI 汇总 job 抓取此行生成跨版本对比表格（单位：字节）
+            System.out.printf("PROBE_RESULT_BYTES|baseline=%d|propsDelta=%d|binDelta=%d|totalDelta=%d%n",
+                    baseline, afterProps - baseline, binDelta, afterBin - baseline);
         }
         System.out.println("========================================");
     }

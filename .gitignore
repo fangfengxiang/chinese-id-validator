@@ -18,6 +18,17 @@ target/
 .DS_Store
 Thumbs.db
 
+# CI 步骤的本地复现产物
+test/probe-classes/
+test/out/
+test/probe-sources.txt
+mvn.log
+probe-output.txt
+*-result-jdk*.txt
+
 # CodeBuddy
 .codebuddy/
 
+
+# shade 构建产物（-Pbenchmark 每次构建生成）
+dependency-reduced-pom.xml

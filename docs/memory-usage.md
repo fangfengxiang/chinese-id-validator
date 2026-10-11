@@ -12,7 +12,9 @@
 
 ## 测量结果
 
-测试环境：Docker 容器，Eclipse Temurin JRE 11，`-Xmx128m`，测量前触发两次 GC + 300ms 等待，读取 `ManagementFactory.getMemoryMXBean()` 堆已用字节。
+测试环境：Docker 容器，Eclipse Temurin **JRE 8**（最低支持版本，`test/Dockerfile.probe` 运行镜像），`-Xmx128m`，测量前触发两次 GC + 300ms 等待，读取 `ManagementFactory.getMemoryMXBean()` 堆已用字节。
+
+> 数值随 JVM 版本变化：JDK 9+ 引入 compact strings（Latin-1 字符串从 UTF-16 降为单字节），字符串密集的本库在 JDK 11+ 上占用更低；JDK 8 的数值是各版本中的上界。CI 每次构建在 JDK 8/11/17/21/25 上各测一遍并汇总对比（见文末「CI 自动测量」）。
 
 ### `address_code.properties`
 
@@ -21,7 +23,7 @@
 | 条目数 | 3,209 |
 | 文件大小 | 69 KB |
 | 格式 | `地址码=行政区划全称`，UTF-8，按地址码升序 |
-| **Java 常驻内存增量** | **0.41 MB（431,656 bytes）** |
+| **Java 常驻内存增量** | **0.56 MB（588,456 bytes）** |
 
 ### `address_code_timeline.bin`
 
@@ -30,15 +32,15 @@
 | 有时间线的地址码数 | 3,209 |
 | 时间线条目总数 | 3,501 |
 | 文件大小 | 218 KB |
-| **Java 常驻内存增量** | **2.04 MB（2,139,992 bytes）** |
+| **Java 常驻内存增量** | **2.05 MB（2,147,560 bytes）** |
 
 ### 内存占用全景
 
 ```
-JVM 基线（未加载业务数据）:        1.04 MB
-.properties 加载后:                1.46 MB  (+0.41 MB ← addressCodeMap 3,209 条)
-.bin 加载后:                       3.50 MB  (+2.04 MB ← timelineMap 3,501 条)
-总增量（.properties + .bin）:      2.45 MB
+JVM 基线（未加载业务数据）:        0.30 MB
+.properties 加载后:                0.86 MB  (+0.56 MB ← addressCodeMap 3,209 条)
+.bin 加载后:                       2.91 MB  (+2.05 MB ← timelineMap 3,501 条)
+总增量（.properties + .bin）:      2.61 MB
 ```
 
 > `.bin` 占用约为 `.properties` 的 5 倍 —— `timelineMap` 是 `HashMap<Integer, List<TimelineEntry>>`，每条 `TimelineEntry` 含 `address` + `startYear` + `endYear` 三个 String 字段，对象头开销远大于纯键值对。
@@ -64,4 +66,4 @@ test/
 
 ### CI 自动测量
 
-每次 push / PR，GitHub Actions 的 `memory-probe` job 自动编译并运行探针，结果写入 run summary（在 PR / commit 的 **Checks → Summary** 页面可直接查看，无需本地运行）。详见 `.github/workflows/ci.yml`。
+每次 push / PR，GitHub Actions 的 `memory-probe` 矩阵在 JDK 8/11/17/21/25 上各编译并运行一遍探针（探针零依赖，直接 `javac` 编译，不走 Maven），随后 `report` job 把 5 个版本的结果聚合成对比表格写入 run summary（在 PR / commit 的 **Checks → Summary** 页面可直接查看，无需本地运行）。详见 `.github/workflows/ci.yml`。
