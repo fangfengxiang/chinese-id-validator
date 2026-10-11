@@ -6,40 +6,30 @@ import java.util.List;
 /**
  * 自定义数据源 SPI（Service Provider Interface）。
  *
- * <p>用户实现此接口，通过 {@link cn.chineseid.validator.IdValidator#setCustomDataSource} 注入，
- * 补充或覆盖内置行政区划数据。初始化在实现类的构造函数中完成，无需显式 {@code init()} 方法
- * （与 JDBC {@code Driver}、SLF4J {@code ILoggerFactory} 等 Java 标准 SPI 一致）。
- *
- * <h3>合并策略</h3>
- * <ul>
- *   <li>{@link MergeMode#FALLBACK}（默认）— 内置有数据则不调用本接口，仅填充缺失
- *   <li>{@link MergeMode#MERGE} — 总是调用本接口，与内置合并，自定义条目优先匹配
- * </ul>
+ * <p>用户实现此接口，通过 {@link cn.chineseid.validator.IdValidator#initialize} 一次性注入，
+ * 补充或覆盖内置行政区划数据。合并策略由 {@code initialize} 的 {@link MergeMode} 参数指定，
+ * 不属于数据源自身的职责。
  *
  * <h3>空值约定</h3>
  * <ul>
- *   <li>{@link #getTimeline(int)} 返回空列表 = 该地址码无自定义时间线数据
+ *   <li>{@link #getTimeline(int)} 返回非 {@code null} 的空列表 = 该地址码无自定义时间线数据
  *   <li>{@link #getAddressName(int)} 返回 {@code null} = 该地址码无自定义地址名称
  * </ul>
+ *
+ * <h3>异常约定</h3>
+ * <p>实现类在查询失败时应抛出 {@link RuntimeException}，不得返回空值伪装成无数据。
+ * 库会将异常包装为 {@link cn.chineseid.validator.IdValidatorException} 向上传播。
+ *
+ * <h3>线程安全</h3>
+ * <p>实现类自行保证线程安全。库不同步对数据源的访问。
  */
 public interface CustomDataSource {
-
-    /**
-     * 合并策略，默认 {@link MergeMode#FALLBACK}。
-     *
-     * <p>实现类可 override 此方法以切换策略。例如需自定义优先覆盖内置则返回 {@link MergeMode#MERGE}。
-     *
-     * @return 合并策略
-     */
-    default MergeMode getMergeMode() {
-        return MergeMode.FALLBACK;
-    }
 
     /**
      * 获取自定义时间线条目。
      *
      * @param code 行政区划代码
-     * @return 时间线条目列表，空列表表示无自定义数据
+     * @return 时间线条目列表，非 {@code null}；空列表表示无自定义数据
      */
     List<TimelineEntry> getTimeline(int code);
 

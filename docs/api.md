@@ -18,8 +18,8 @@
 | `fakeId()` | 无 | `String` | 生成随机 18 位假号 |
 | `fakeRequireId(builder)` | `FakeIdBuilder` | `String` | 按条件生成假号 |
 | `upgradeId(id)` | 15 位身份证号 | `String` | 升级为 18 位 |
-| `setCustomDataSource(ds)` | `CustomDataSource` | `void` | 注入自定义数据源 |
-| `clearCustomDataSource()` | 无 | `void` | 清除自定义数据源 |
+| `preload()` | 无 | `void` | 预加载内置数据（幂等） |
+| `initialize(source, mergeMode)` | `CustomDataSource`, `MergeMode` | `void` | 一次性安装自定义数据源及合并策略 |
 
 ## 验证
 
@@ -142,9 +142,9 @@ IdValidator.fakeRequireId(new FakeIdBuilder()
 IdValidator.upgradeId("610104620927690");  // → 18 位身份证号
 ```
 
-## 注入自定义数据源 — `setCustomDataSource`
+## 安装自定义数据源 — `initialize`
 
-实现 `CustomDataSource` 接口，在构造函数中初始化数据，通过 `setCustomDataSource` 注入：
+实现 `CustomDataSource` 接口，通过 `initialize` 一次性安装：
 
 ```java
 // 1. 实现接口（构造函数即初始化，无需 init 方法）
@@ -162,24 +162,29 @@ public class MyDataSource implements CustomDataSource {
     public String getAddressName(int code) {
         // 返回自定义地址名，null = 无自定义数据
     }
-
-    // 可选：override getMergeMode() 切换策略，默认 FALLBACK
-    @Override
-    public MergeMode getMergeMode() {
-        return MergeMode.MERGE; // 自定义优先，覆盖内置
-    }
 }
 
-// 2. 注入
-IdValidator.setCustomDataSource(new MyDataSource());
+// 2. 一次性安装（原子发布，全 JVM 生效）
+IdValidator.initialize(new MyDataSource(), MergeMode.MERGE);
 
-// 3. 清除（恢复纯内置数据）
-IdValidator.clearCustomDataSource();
+// 3. 可选：预加载内置数据（应用启动阶段调用，幂等）
+IdValidator.preload();
 ```
+
+> `initialize()` 只能调用一次。成功后再次调用抛出 `IllegalStateException`。
+> 普通使用无需显式调用 `preload()` 或 `initialize()`——首次调用业务 API 时自动加载内置数据。
 
 **合并策略：**
 
 | 策略 | 行为 | 适用场景 |
 |---|---|---|
-| `FALLBACK`（默认） | 内置有数据则不查自定义源，仅填充缺失 | 仅补缺，不动已有数据 |
+| `FALLBACK` | 内置有数据则不查自定义源，仅填充缺失 | 仅补缺，不动已有数据 |
 | `MERGE` | 总是查自定义源，与内置合并，自定义优先 | 补充/覆盖内置数据 |
+
+**异常约定：**
+
+| 异常类型 | 触发条件 |
+|---|---|
+| `IllegalArgumentException` | `initialize(source, null)` 或 `initialize(null, mergeMode)` |
+| `IllegalStateException` | 重复调用 `initialize()` |
+| `IdValidatorException` | 自定义数据源查询时抛出 `RuntimeException` |

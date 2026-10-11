@@ -5,6 +5,7 @@ import cn.chineseid.validator.core.CodeParser;
 import cn.chineseid.validator.core.Validator;
 import cn.chineseid.validator.data.CustomDataSource;
 import cn.chineseid.validator.data.DataProvider;
+import cn.chineseid.validator.data.MergeMode;
 import cn.chineseid.validator.generator.FakeIdBuilder;
 import cn.chineseid.validator.generator.IdGenerator;
 import cn.chineseid.validator.model.BasicIdInfo;
@@ -22,7 +23,14 @@ import java.util.List;
 /**
  * 身份证号码验证器（Facade 模式）。
  *
- * 统一入口，对外暴露全部公开 API。
+ * <p>统一入口，对外暴露全部公开 API。
+ *
+ * <h3>初始化</h3>
+ * <ul>
+ *   <li>普通使用无需显式初始化，首次调用业务 API 时自动加载内置数据
+ *   <li>{@link #preload()} 可在应用启动阶段显式预加载内置数据（幂等）
+ *   <li>{@link #initialize(CustomDataSource, MergeMode)} 一次性安装自定义数据源及合并策略
+ * </ul>
  */
 public final class IdValidator {
 
@@ -70,23 +78,32 @@ public final class IdValidator {
      */
     public static boolean isValidBasic(String id) {
         try {
-            IdCode code = CodeParser.parse(id);
-            if (!Validator.checkOrderCode(code.getOrderCode())) {
-                return false;
-            }
-            if (!Validator.checkBirthdayCode(code.getBirthdayCode())) {
-                return false;
-            }
-            if (code.getType() == IdType.FIFTEEN) {
-                return true;
-            }
-            return CheckBitCalculator.verify(code.getBody() + code.getCheckBit());
+            parseAndValidateBasic(id);
+            return true;
         } catch (IllegalArgumentException e) {
             return false;
         }
     }
 
     // ==================== 信息解析 API ====================
+
+    /**
+     * 解析并校验身份证号，返回 {@link IdCode} 对象。
+     *
+     * <p>内部方法，供 {@link #isValid} 和 {@link #getInfo} 共用，避免重复解析。
+     *
+     * @param id     身份证号
+     * @param strict 是否严格模式
+     * @return 解析后的 {@link IdCode}
+     * @throws IllegalArgumentException 身份证号不合法
+     */
+    private static IdCode parseAndValidate(String id, boolean strict) {
+        IdCode code = CodeParser.parse(id);
+        if (!Validator.validate(code, strict)) {
+            throw new IllegalArgumentException(IdValidatorMessages.NOT_VALID_ID + id);
+        }
+        return code;
+    }
 
     /**
      * 获取完整身份证信息。
@@ -97,11 +114,7 @@ public final class IdValidator {
      * @throws IllegalArgumentException 身份证号不合法
      */
     public static IdInfo getInfo(String id, boolean strict) {
-        if (!isValid(id, strict)) {
-            throw new IllegalArgumentException("Not Valid ID card number: " + id);
-        }
-
-        IdCode code = CodeParser.parse(id);
+        IdCode code = parseAndValidate(id, strict);
 
         List<String> addressInfo =
                 AddressResolver.getAddressInfo(code.getAddressCode(), code.getBirthdayCode(), strict);
@@ -138,11 +151,7 @@ public final class IdValidator {
      * @throws IllegalArgumentException 身份证号不合法
      */
     public static BasicIdInfo getBasicInfo(String id) {
-        if (!isValidBasic(id)) {
-            throw new IllegalArgumentException("Not Valid ID card number: " + id);
-        }
-
-        IdCode code = CodeParser.parse(id);
+        IdCode code = parseAndValidateBasic(id);
 
         LocalDate birthday = LocalDate.parse(code.getBirthdayCode(), DATE_FORMATTER);
         int sexCode = Integer.parseInt(code.getOrderCode());
@@ -155,6 +164,29 @@ public final class IdValidator {
                 sex,
                 code.getType(),
                 code.getCheckBit());
+    }
+
+    /**
+     * 解析并基础校验身份证号，返回 {@link IdCode} 对象。
+     *
+     * <p>内部方法，供 {@link #isValidBasic} 和 {@link #getBasicInfo} 共用，避免重复解析。
+     *
+     * @param id 身份证号
+     * @return 解析后的 {@link IdCode}
+     * @throws IllegalArgumentException 身份证号不合法
+     */
+    private static IdCode parseAndValidateBasic(String id) {
+        IdCode code = CodeParser.parse(id);
+        if (!Validator.checkOrderCode(code.getOrderCode())) {
+            throw new IllegalArgumentException(IdValidatorMessages.NOT_VALID_ID + id);
+        }
+        if (!Validator.checkBirthdayCode(code.getBirthdayCode())) {
+            throw new IllegalArgumentException(IdValidatorMessages.NOT_VALID_ID + id);
+        }
+        if (code.getType() != IdType.FIFTEEN && !CheckBitCalculator.verify(code.getBody() + code.getCheckBit())) {
+            throw new IllegalArgumentException(IdValidatorMessages.NOT_VALID_ID + id);
+        }
+        return code;
     }
 
     // ==================== 假号生成 API ====================
@@ -186,13 +218,9 @@ public final class IdValidator {
      * @throws IllegalArgumentException 身份证号不合法或非 15 位
      */
     public static String upgradeId(String id) {
-        if (!isValid(id, true)) {
-            throw new IllegalArgumentException("Not Valid ID card number: " + id);
-        }
-
-        IdCode code = CodeParser.parse(id);
+        IdCode code = parseAndValidate(id, true);
         if (code.getType() != IdType.FIFTEEN) {
-            throw new IllegalArgumentException("ID must be 15 digits, got: " + id.length());
+            throw new IllegalArgumentException(IdValidatorMessages.ID_MUST_BE_15_DIGITS + id.length());
         }
 
         String body = String.format("%06d", code.getAddressCode()) + code.getBirthdayCode() + code.getOrderCode();
@@ -200,25 +228,31 @@ public final class IdValidator {
         return body + CheckBitCalculator.calculate(body);
     }
 
-    // ==================== 自定义数据源配置 API ====================
+    // ==================== 初始化 API ====================
 
     /**
-     * 注入自定义数据源。
+     * 预加载内置数据（地址码 + 时间线）。
      *
-     * <p>用户实现 {@link CustomDataSource} 接口，在构造函数中完成数据初始化，
-     * 通过此方法注入。注入后，所有地址解析和假号生成查询均会按
-     * {@link CustomDataSource#getMergeMode()} 指定的策略与内置数据合并。</p>
-     *
-     * @param dataSource 自定义数据源实现，传 null 等同于 {@link #clearCustomDataSource}
+     * <p>幂等操作：重复调用不会重新加载或重建索引。
+     * 适用于应用启动阶段主动准备数据，避免首次业务调用时的延迟。
      */
-    public static void setCustomDataSource(CustomDataSource dataSource) {
-        DataProvider.getInstance().setCustomDataSource(dataSource);
+    public static void preload() {
+        DataProvider.getInstance().preloadTimeline();
     }
 
     /**
-     * 清除自定义数据源，恢复为仅使用内置数据。
+     * 一次性安装自定义数据源及合并策略。
+     *
+     * <p>原子发布：数据源和合并策略作为不可变配置对整体发布，
+     * 保证多线程不会看到半发布状态。成功后再次调用抛出
+     * {@link IllegalStateException}，不会静默覆盖已有配置。
+     *
+     * @param source    自定义数据源实现，不允许 null
+     * @param mergeMode 合并策略，不允许 null
+     * @throws IllegalStateException    已成功初始化后再次调用
+     * @throws IllegalArgumentException source 或 mergeMode 为 null
      */
-    public static void clearCustomDataSource() {
-        DataProvider.getInstance().clearCustomDataSource();
+    public static void initialize(CustomDataSource source, MergeMode mergeMode) {
+        DataProvider.getInstance().initialize(source, mergeMode);
     }
 }

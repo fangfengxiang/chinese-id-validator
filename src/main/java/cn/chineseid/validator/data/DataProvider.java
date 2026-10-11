@@ -1,5 +1,6 @@
 package cn.chineseid.validator.data;
 
+import cn.chineseid.validator.IdValidatorMessages;
 import cn.chineseid.validator.model.ConstellationData;
 import cn.chineseid.validator.model.TimelineEntry;
 import java.io.BufferedInputStream;
@@ -25,6 +26,11 @@ import java.util.Properties;
  * - 生肖/星座：编译期常量，零 I/O
  * - 地址码：.properties 文件，初始化时加载
  * - 时间线：.bin 二进制文件，首次查询时懒加载（Holder 模式）
+ *
+ * 初始化生命周期：
+ * - 内置数据通过 JVM 类初始化（Holder 模式）保证线程安全和一次性加载
+ * - 自定义数据源通过 {@link #initialize(CustomDataSource, MergeMode)} 一次性原子发布
+ * - 初始化成功后再次调用 {@link #initialize} 抛出 {@link IllegalStateException}
  */
 public final class DataProvider {
 
@@ -56,11 +62,24 @@ public final class DataProvider {
     /** 地址码 → 名称映射 */
     private final Map<Integer, String> addressCodeMap;
 
-    /** 自定义数据源（volatile 保证多线程可见性，默认空实现） */
-    private volatile CustomDataSource customDataSource = NoopCustomDataSource.INSTANCE;
+    /** 缓存的地址码 entry 列表（不可变，供假号生成器随机选择复用） */
+    private final List<Map.Entry<Integer, String>> cachedEntries;
+
+    /**
+     * 自定义数据源配置（volatile 保证多线程可见性）。
+     * null 表示尚未安装自定义数据源。
+     */
+    private volatile Configuration config;
+
+    /**
+     * 标记是否已成功初始化自定义配置。
+     * 仅在 {@link #initialize} 的 synchronized 块内读写，synchronized 已保证可见性。
+     */
+    private boolean initialized = false;
 
     private DataProvider() {
         this.addressCodeMap = loadAddressCodeMap();
+        this.cachedEntries = Collections.unmodifiableList(new ArrayList<>(this.addressCodeMap.entrySet()));
     }
 
     public static DataProvider getInstance() {
@@ -76,22 +95,60 @@ public final class DataProvider {
         static final Map<Integer, List<TimelineEntry>> TIMELINE = loadTimelineMap();
     }
 
-    // ==================== 自定义数据源 ====================
+    /**
+     * 不可变配置对 — 自定义数据源 + 合并策略。
+     * 通过 volatile 引用原子发布，保证多线程看不到半发布状态。
+     */
+    private static final class Configuration {
+        final CustomDataSource source;
+        final MergeMode mergeMode;
+
+        Configuration(CustomDataSource source, MergeMode mergeMode) {
+            this.source = source;
+            this.mergeMode = mergeMode;
+        }
+    }
+
+    // ==================== 初始化 ====================
 
     /**
-     * 注入自定义数据源。
+     * 一次性安装自定义数据源及合并策略。
      *
-     * @param dataSource 自定义数据源实现，null 恢复为 Noop
+     * <p>原子发布：source 和 mergeMode 作为不可变 Configuration 对整体发布。
+     * 成功后再次调用抛出 {@link IllegalStateException}。
+     *
+     * @param source    自定义数据源，不允许 null
+     * @param mergeMode 合并策略，不允许 null
+     * @throws IllegalStateException     已成功初始化后再次调用
+     * @throws IllegalArgumentException  source 或 mergeMode 为 null
      */
-    public void setCustomDataSource(CustomDataSource dataSource) {
-        this.customDataSource = (dataSource == null) ? NoopCustomDataSource.INSTANCE : dataSource;
+    public synchronized void initialize(CustomDataSource source, MergeMode mergeMode) {
+        if (source == null) {
+            throw new IllegalArgumentException(IdValidatorMessages.NULL_DATA_SOURCE);
+        }
+        if (mergeMode == null) {
+            throw new IllegalArgumentException(IdValidatorMessages.NULL_MERGE_MODE);
+        }
+        if (initialized) {
+            throw new IllegalStateException(IdValidatorMessages.DUPLICATE_INITIALIZATION);
+        }
+        this.config = new Configuration(source, mergeMode);
+        this.initialized = true;
     }
 
     /**
-     * 清除自定义数据源，恢复为 Noop（仅内置数据）。
+     * 显式预加载内置时间线数据（幂等）。
+     *
+     * <p>触发 {@link TimelineHolder} 类初始化，加载 .bin 二进制时间线数据。
+     * 重复调用不会重复加载（JVM 类初始化保证）。
      */
-    public void clearCustomDataSource() {
-        this.customDataSource = NoopCustomDataSource.INSTANCE;
+    public void preloadTimeline() {
+        // 访问 TimelineHolder.TIMELINE 触发 JVM 类初始化（线程安全、一次性）
+        int size = TimelineHolder.TIMELINE.size();
+        // 防止 JIT 优化掉此次访问
+        if (size < 0) {
+            throw new AssertionError("Timeline size cannot be negative");
+        }
     }
 
     // ==================== 查询方法 ====================
@@ -99,51 +156,73 @@ public final class DataProvider {
     /**
      * 根据地址码获取行政区划名称（内置 + 自定义合并）。
      *
-     * <p>合并策略由 {@link CustomDataSource#getMergeMode()} 决定：
+     * <p>合并策略由 {@link #initialize} 安装的 {@link MergeMode} 决定：
      * <ul>
      *   <li>{@link MergeMode#FALLBACK} — 内置有数据则不查自定义源
      *   <li>{@link MergeMode#MERGE}    — 总是查自定义源，自定义非 null 则优先
      * </ul>
+     * <p>未安装自定义数据源时，直接返回内置数据。
+     *
+     * @throws cn.chineseid.validator.IdValidatorException 自定义数据源查询失败时包装原始异常
      */
     public String getAddressName(int code) {
         String builtIn = addressCodeMap.getOrDefault(code, "");
-        MergeMode mode = customDataSource.getMergeMode();
-
-        if (mode == MergeMode.FALLBACK && !builtIn.isEmpty()) {
+        Configuration cfg = this.config;
+        if (cfg == null) {
             return builtIn;
         }
-        String custom = customDataSource.getAddressName(code);
-        return (custom != null) ? custom : builtIn;
+
+        if (cfg.mergeMode == MergeMode.FALLBACK && !builtIn.isEmpty()) {
+            return builtIn;
+        }
+        try {
+            String custom = cfg.source.getAddressName(code);
+            return (custom != null) ? custom : builtIn;
+        } catch (RuntimeException e) {
+            throw new cn.chineseid.validator.IdValidatorException(
+                    IdValidatorMessages.DATA_SOURCE_QUERY_FAILED + code, e);
+        }
     }
 
     /**
      * 根据地址码获取时间线条目列表（内置 + 自定义合并）。
      *
-     * <p>合并策略由 {@link CustomDataSource#getMergeMode()} 决定：
+     * <p>合并策略由 {@link #initialize} 安装的 {@link MergeMode} 决定：
      * <ul>
      *   <li>{@link MergeMode#FALLBACK} — 内置有数据则不查自定义源
      *   <li>{@link MergeMode#MERGE}    — 总是查自定义源，合并后自定义条目排在前面优先匹配
      * </ul>
+     * <p>未安装自定义数据源时，直接返回内置数据。
+     *
+     * @throws cn.chineseid.validator.IdValidatorException 自定义数据源查询失败时包装原始异常
      */
     public List<TimelineEntry> getTimeline(int code) {
         List<TimelineEntry> builtIn = TimelineHolder.TIMELINE.getOrDefault(code, Collections.emptyList());
-        MergeMode mode = customDataSource.getMergeMode();
+        Configuration cfg = this.config;
+        if (cfg == null) {
+            return builtIn;
+        }
 
-        if (mode == MergeMode.FALLBACK && !builtIn.isEmpty()) {
+        if (cfg.mergeMode == MergeMode.FALLBACK && !builtIn.isEmpty()) {
             return builtIn;
         }
-        List<TimelineEntry> custom = customDataSource.getTimeline(code);
-        if (custom == null || custom.isEmpty()) {
-            return builtIn;
+        try {
+            List<TimelineEntry> custom = cfg.source.getTimeline(code);
+            if (custom == null || custom.isEmpty()) {
+                return builtIn;
+            }
+            if (builtIn.isEmpty()) {
+                return custom;
+            }
+            // MERGE：自定义在前，内置在后
+            List<TimelineEntry> merged = new ArrayList<>(custom.size() + builtIn.size());
+            merged.addAll(custom);
+            merged.addAll(builtIn);
+            return Collections.unmodifiableList(merged);
+        } catch (RuntimeException e) {
+            throw new cn.chineseid.validator.IdValidatorException(
+                    IdValidatorMessages.DATA_SOURCE_QUERY_FAILED + code, e);
         }
-        if (builtIn.isEmpty()) {
-            return custom;
-        }
-        // MERGE：自定义在前，内置在后
-        List<TimelineEntry> merged = new ArrayList<>(custom.size() + builtIn.size());
-        merged.addAll(custom);
-        merged.addAll(builtIn);
-        return Collections.unmodifiableList(merged);
     }
 
     /**
@@ -151,6 +230,16 @@ public final class DataProvider {
      */
     public Map<Integer, String> getAllAddressCodes() {
         return Collections.unmodifiableMap(addressCodeMap);
+    }
+
+    /**
+     * 获取缓存的地址码 entry 列表（不可变，供假号生成器随机选择复用）。
+     *
+     * <p>列表在 DataProvider 构造时创建一次，后续所有调用复用同一实例，
+     * 避免每次 {@code fakeRequireId} 都 {@code new ArrayList<>(entrySet())}。
+     */
+    public List<Map.Entry<Integer, String>> getAddressCodeEntries() {
+        return cachedEntries;
     }
 
     /**

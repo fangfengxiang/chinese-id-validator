@@ -21,13 +21,16 @@ import org.junit.jupiter.api.Test;
  *   <li>{@link MergeMode#FALLBACK} — 内置有数据则不查自定义源
  *   <li>{@link MergeMode#MERGE} — 总是合并，自定义优先
  * </ul>
+ *
+ * <p>每个测试方法调用 {@link IdValidator#initialize} 安装自定义数据源，
+ * {@code @AfterEach} 通过 {@link TestStateResetter} 重置状态以支持下一次初始化。
  */
 @DisplayName("自定义数据源测试")
 class CustomTimelineTest {
 
     @AfterEach
     void cleanup() {
-        IdValidator.clearCustomDataSource();
+        TestStateResetter.resetDataProvider();
     }
 
     // ==================== 辅助：构造合法身份证号 ====================
@@ -45,9 +48,9 @@ class CustomTimelineTest {
     void shouldNotCallCustomWhenBuiltinHasDataInFallbackMode() {
         // 110101（东城区）内置有数据，自定义源提供不同的地址名
         // FALLBACK 模式下应返回内置数据，不使用自定义
-        CustomDataSource source = new TestDataSource(
-                MergeMode.FALLBACK, Collections.singletonMap(110101, "自定义东城区"), Collections.emptyMap());
-        IdValidator.setCustomDataSource(source);
+        CustomDataSource source =
+                new TestDataSource(Collections.singletonMap(110101, "自定义东城区"), Collections.emptyMap());
+        IdValidator.initialize(source, MergeMode.FALLBACK);
 
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
@@ -61,10 +64,9 @@ class CustomTimelineTest {
     void shouldUseCustomWhenBuiltinMissingInFallbackMode() {
         // 110999 不在官方数据中，自定义源补充
         CustomDataSource source = new TestDataSource(
-                MergeMode.FALLBACK,
                 Collections.emptyMap(),
                 Collections.singletonMap(110999, Collections.singletonList(new TimelineEntry("测试区", "1990", "2020"))));
-        IdValidator.setCustomDataSource(source);
+        IdValidator.initialize(source, MergeMode.FALLBACK);
 
         String id = buildValidId(110999, "19950101");
         IdInfo info = IdValidator.getInfo(id, false);
@@ -81,11 +83,10 @@ class CustomTimelineTest {
         // 110101 内置有"东城区"，自定义源提供"自定义东城区"
         // MERGE 模式下自定义条目排在前面优先匹配
         CustomDataSource source = new TestDataSource(
-                MergeMode.MERGE,
                 Collections.singletonMap(110101, "自定义东城区"),
                 Collections.singletonMap(
                         110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
-        IdValidator.setCustomDataSource(source);
+        IdValidator.initialize(source, MergeMode.MERGE);
 
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
@@ -97,8 +98,8 @@ class CustomTimelineTest {
     @DisplayName("MERGE 模式：自定义无数据时回退内置")
     void shouldFallbackToBuiltinWhenCustomEmptyInMergeMode() {
         // 110101 内置有数据，自定义源返回空
-        CustomDataSource source = new TestDataSource(MergeMode.MERGE, Collections.emptyMap(), Collections.emptyMap());
-        IdValidator.setCustomDataSource(source);
+        CustomDataSource source = new TestDataSource(Collections.emptyMap(), Collections.emptyMap());
+        IdValidator.initialize(source, MergeMode.MERGE);
 
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
@@ -111,10 +112,9 @@ class CustomTimelineTest {
     void shouldUseCustomOnlyWhenBuiltinMissingInMergeMode() {
         // 110999 不在官方数据中
         CustomDataSource source = new TestDataSource(
-                MergeMode.MERGE,
                 Collections.emptyMap(),
                 Collections.singletonMap(110999, Collections.singletonList(new TimelineEntry("测试区", "1990", "2020"))));
-        IdValidator.setCustomDataSource(source);
+        IdValidator.initialize(source, MergeMode.MERGE);
 
         String id = buildValidId(110999, "19950101");
         IdInfo info = IdValidator.getInfo(id, false);
@@ -122,78 +122,83 @@ class CustomTimelineTest {
         assertTrue(info.getAddress().contains("测试区"), "内置缺失时应使用自定义数据");
     }
 
-    // ==================== 默认模式 + 清除测试 ====================
+    // ==================== 初始化生命周期测试 ====================
 
     @Test
-    @DisplayName("默认模式为 FALLBACK（不 override getMergeMode）")
-    void defaultModeShouldBeFallback() {
-        // 不 override getMergeMode()，默认 FALLBACK
-        // 内置 110101 有数据，FALLBACK 下不查自定义，应返回内置
-        CustomDataSource source = new TestDataSource(
-                null, // null = 不 override，用默认 FALLBACK
-                Collections.singletonMap(110101, "自定义东城区"),
-                Collections.singletonMap(
-                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
-        IdValidator.setCustomDataSource(source);
-
+    @DisplayName("未安装自定义数据源时默认使用内置数据")
+    void shouldUseBuiltinWhenNoCustomSourceInstalled() {
+        // 不调用 initialize()，直接使用内置数据
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
 
-        assertTrue(info.getAddress().contains("东城区"), "默认 FALLBACK 模式应使用内置数据");
-        assertFalse(info.getAddress().contains("自定义"), "默认 FALLBACK 模式不应使用自定义数据");
+        assertTrue(info.getAddress().contains("东城区"), "未安装自定义源时应使用内置数据");
+        assertFalse(info.getAddress().contains("自定义"), "不应包含自定义数据");
     }
 
     @Test
-    @DisplayName("clearCustomDataSource 后恢复仅内置数据")
-    void shouldRestoreAfterClear() {
-        CustomDataSource source = new TestDataSource(
-                MergeMode.MERGE,
-                Collections.singletonMap(110101, "自定义东城区"),
-                Collections.singletonMap(
-                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
-        IdValidator.setCustomDataSource(source);
-        IdValidator.clearCustomDataSource();
+    @DisplayName("重复初始化抛出 IllegalStateException")
+    void shouldThrowOnDuplicateInitialization() {
+        CustomDataSource source = new TestDataSource(Collections.emptyMap(), Collections.emptyMap());
+        IdValidator.initialize(source, MergeMode.FALLBACK);
 
-        String id = buildValidId(110101, "19900307");
-        IdInfo info = IdValidator.getInfo(id, false);
-
-        assertFalse(info.getAddress().contains("自定义"), "清除后不应包含自定义数据");
-        assertTrue(info.getAddress().contains("东城区"), "清除后应恢复内置数据");
+        assertThrows(
+                IllegalStateException.class,
+                () -> {
+                    IdValidator.initialize(source, MergeMode.MERGE);
+                },
+                "重复初始化应抛出 IllegalStateException");
     }
 
     @Test
-    @DisplayName("setCustomDataSource(null) 等同 clearCustomDataSource")
-    void nullShouldActAsClear() {
-        IdValidator.setCustomDataSource(null);
+    @DisplayName("initialize(null, MERGE) 抛出 IllegalArgumentException")
+    void shouldThrowOnNullSource() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    IdValidator.initialize(null, MergeMode.MERGE);
+                },
+                "null 数据源应抛出 IllegalArgumentException");
+    }
 
+    @Test
+    @DisplayName("initialize(source, null) 抛出 IllegalArgumentException")
+    void shouldThrowOnNullMergeMode() {
+        CustomDataSource source = new TestDataSource(Collections.emptyMap(), Collections.emptyMap());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    IdValidator.initialize(source, null);
+                },
+                "null 合并策略应抛出 IllegalArgumentException");
+    }
+
+    @Test
+    @DisplayName("preload() 可重复调用，多次调用无副作用且内置数据正常")
+    void preloadShouldBeIdempotent() {
+        // preload() 依赖 JVM 类初始化保证幂等：重复调用不应抛异常
+        IdValidator.preload();
+        IdValidator.preload();
+        IdValidator.preload();
+
+        // 预加载后内置数据仍可正常解析
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
-
-        assertTrue(info.getAddress().contains("东城区"), "null 注入应恢复为内置数据");
+        assertTrue(info.getAddress().contains("东城区"), "preload 后内置数据应正常可用");
     }
 
     // ==================== 测试用 DataSource 实现 ====================
 
     /**
-     * 测试用 CustomDataSource 实现。
-     *
-     * @param mode null 表示不 override（用默认 FALLBACK）
+     * 测试用 CustomDataSource 实现（无 getMergeMode，合并策略由 initialize 参数指定）。
      */
     private static final class TestDataSource implements CustomDataSource {
 
-        private final MergeMode mode;
         private final Map<Integer, String> addressNames;
         private final Map<Integer, List<TimelineEntry>> timelines;
 
-        TestDataSource(MergeMode mode, Map<Integer, String> addressNames, Map<Integer, List<TimelineEntry>> timelines) {
-            this.mode = mode;
+        TestDataSource(Map<Integer, String> addressNames, Map<Integer, List<TimelineEntry>> timelines) {
             this.addressNames = (addressNames == null) ? Collections.emptyMap() : addressNames;
             this.timelines = (timelines == null) ? Collections.emptyMap() : timelines;
-        }
-
-        @Override
-        public MergeMode getMergeMode() {
-            return (mode != null) ? mode : CustomDataSource.super.getMergeMode();
         }
 
         @Override

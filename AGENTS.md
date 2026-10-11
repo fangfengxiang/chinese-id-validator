@@ -41,7 +41,6 @@ java -jar target/*-benchmarks.jar    # Run JMH benchmarks locally
 - Style: Spotless + palantir-java-format (4-space indent; `cn.*` imports stay before `java.*` — no `importOrder` configured)
 - Static analysis: SpotBugs (effort=Max, threshold=Medium), bound to `verify` so local `mvn verify` enforces it; bytecode-level complement to source-level checks
 - Coverage: JaCoCo reports uploaded to Codecov from both test jobs (`unit` / `integration` flags)
-- Security: Dependabot weekly for actions + maven
 
 ## Architecture
 
@@ -55,7 +54,7 @@ src/main/java/cn/chineseid/validator/
 └── util/                   # Address/constellation/zodiac calculators
 ```
 
-- `IdValidator` is the only entry point — facade with static methods (isValid, getInfo, getBasicInfo, fakeId, fakeRequireId, upgradeId, setCustomDataSource, clearCustomDataSource)
+- `IdValidator` is the only entry point — facade with static methods (isValid, getInfo, getBasicInfo, fakeId, fakeRequireId, upgradeId, preload, initialize)
 - `DataProvider` uses Singleton + Holder pattern, lazy-loads on first `getInstance()` call
 - Runtime data lives in `src/main/resources/data/` (JSON source + .properties + .bin artifacts)
 - Data generator tool: `src/test/java/cn/chineseid/validator/tools/DataFileGenerator.java` (test scope, not in runtime JAR)

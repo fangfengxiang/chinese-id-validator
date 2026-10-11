@@ -2,7 +2,6 @@ package cn.chineseid.validator.generator;
 
 import cn.chineseid.validator.core.CheckBitCalculator;
 import cn.chineseid.validator.data.DataProvider;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -40,9 +39,9 @@ public final class IdGenerator {
         String address;
 
         if (builder.getAddress().isEmpty()) {
-            // 随机选取一个地址码及其名称
-            List<Map.Entry<Integer, String>> entries = new ArrayList<>(
-                    DataProvider.getInstance().getAllAddressCodes().entrySet());
+            // 随机选取一个地址码及其名称（复用缓存的不可变 entry 列表，避免每次 new ArrayList）
+            List<Map.Entry<Integer, String>> entries =
+                    DataProvider.getInstance().getAddressCodeEntries();
             Map.Entry<Integer, String> entry =
                     entries.get(ThreadLocalRandom.current().nextInt(entries.size()));
             addressCode = String.format("%06d", entry.getKey());

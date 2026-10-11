@@ -120,7 +120,7 @@ IdValidator.upgradeId("610104620927690");
 
 ### 自定义数据源
 
-实现 `CustomDataSource` 接口，通过 `setCustomDataSource` 注入：
+实现 `CustomDataSource` 接口，通过 `initialize` 一次性注入：
 
 ```java
 public class MyDataSource implements CustomDataSource {
@@ -133,22 +133,22 @@ public class MyDataSource implements CustomDataSource {
     public String getAddressName(int code) {
         // 返回自定义地址名，null = 无自定义数据
     }
-
-    // 可选：默认 FALLBACK，可切换 MERGE
-    @Override
-    public MergeMode getMergeMode() {
-        return MergeMode.MERGE;
-    }
 }
 
-IdValidator.setCustomDataSource(new MyDataSource());
-IdValidator.clearCustomDataSource();  // 清除，恢复纯内置数据
+// 一次性初始化（原子发布，全 JVM 生效）
+IdValidator.initialize(new MyDataSource(), MergeMode.MERGE);
 ```
+
+> `initialize()` 只能调用一次。重复调用抛出 `IllegalStateException`。
+> 普通使用无需显式初始化——首次调用业务 API 时自动加载内置数据。
+> 如需在应用启动阶段预加载内置数据，可调用 `IdValidator.preload()`（幂等）。
 
 | 策略 | 行为 |
 |---|---|
-| `FALLBACK`（默认） | 内置有数据则不查自定义源，仅填充缺失 |
+| `FALLBACK` | 内置有数据则不查自定义源，仅填充缺失 |
 | `MERGE` | 总是查自定义源，与内置合并，自定义优先 |
+
+Nacos 等外部配置源集成参考：[example/NacosExample.java](example/NacosExample.java)
 
 更多：[API 参考](docs/api.md)
 
@@ -209,11 +209,15 @@ chinese-id-validator/
 ├── Makefile                         # 数据维护（make data ...）
 ├── Dockerfile                       # 运行镜像
 ├── LICENSE                          # MIT 许可证
+├── example/                         # 独立参考示例（不参与 Maven 构建）
+│   └── NacosExample.java            # Nacos 集成示例
 ├── .github/workflows/               # CI / Release（GitHub Actions）
 ├── docs/                            # 文档（API 参考、数据维护、内存占用）
 ├── test/                            # 内存测量脚本（MemoryProbe + run-*.sh + Dockerfile.probe）
 ├── src/main/java/cn/chineseid/validator/
 │   ├── IdValidator.java             # 对外门面 API
+│   ├── IdValidatorException.java    # 运行时异常（数据源查询失败等）
+│   ├── IdValidatorMessages.java     # 异常消息常量
 │   ├── core/                        # 解析与校验
 │   ├── data/                        # 数据加载（DataProvider / CustomDataSource / MergeMode）
 │   ├── generator/                   # 假号生成

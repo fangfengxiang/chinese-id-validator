@@ -29,6 +29,11 @@ probe-output.txt
 # CodeBuddy
 .codebuddy/
 
+# Claude
+.claude/
+
+# OpenSpec（spec-driven 开发过程文档，本地保留，不入仓库）
+openspec/
 
 # shade 构建产物（-Pbenchmark 每次构建生成）
 dependency-reduced-pom.xml
