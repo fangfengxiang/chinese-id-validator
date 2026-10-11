@@ -2,7 +2,6 @@ package cn.chineseid.validator.data;
 
 import cn.chineseid.validator.model.ConstellationData;
 import cn.chineseid.validator.model.TimelineEntry;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -11,6 +10,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,20 +39,19 @@ public final class DataProvider {
     };
 
     /** 十二星座（编译期常量，零 I/O） */
-    private static final List<ConstellationData> CONSTELLATIONS = List.of(
-        new ConstellationData("水瓶座", "01-20", "02-18"),
-        new ConstellationData("双鱼座", "02-19", "03-20"),
-        new ConstellationData("白羊座", "03-21", "04-19"),
-        new ConstellationData("金牛座", "04-20", "05-20"),
-        new ConstellationData("双子座", "05-21", "06-21"),
-        new ConstellationData("巨蟹座", "06-22", "07-22"),
-        new ConstellationData("狮子座", "07-23", "08-22"),
-        new ConstellationData("处女座", "08-23", "09-22"),
-        new ConstellationData("天秤座", "09-23", "10-23"),
-        new ConstellationData("天蝎座", "10-24", "11-22"),
-        new ConstellationData("射手座", "11-23", "12-21"),
-        new ConstellationData("摩羯座", "12-22", "01-19")
-    );
+    private static final List<ConstellationData> CONSTELLATIONS = Collections.unmodifiableList(Arrays.asList(
+            new ConstellationData("水瓶座", "01-20", "02-18"),
+            new ConstellationData("双鱼座", "02-19", "03-20"),
+            new ConstellationData("白羊座", "03-21", "04-19"),
+            new ConstellationData("金牛座", "04-20", "05-20"),
+            new ConstellationData("双子座", "05-21", "06-21"),
+            new ConstellationData("巨蟹座", "06-22", "07-22"),
+            new ConstellationData("狮子座", "07-23", "08-22"),
+            new ConstellationData("处女座", "08-23", "09-22"),
+            new ConstellationData("天秤座", "09-23", "10-23"),
+            new ConstellationData("天蝎座", "10-24", "11-22"),
+            new ConstellationData("射手座", "11-23", "12-21"),
+            new ConstellationData("摩羯座", "12-22", "01-19")));
 
     /** 地址码 → 名称映射 */
     private final Map<Integer, String> addressCodeMap;
@@ -189,8 +188,7 @@ public final class DataProvider {
         if (is == null) {
             throw new IllegalStateException("Resource not found: " + ADDRESS_CODE_FILE);
         }
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(is, StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             props.load(reader);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load resource: " + ADDRESS_CODE_FILE, e);

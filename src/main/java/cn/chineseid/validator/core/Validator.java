@@ -2,11 +2,11 @@ package cn.chineseid.validator.core;
 
 import cn.chineseid.validator.model.IdCode;
 import cn.chineseid.validator.util.AddressResolver;
-
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 
 /**
  * 身份证号校验器。
@@ -16,8 +16,7 @@ public final class Validator {
     private static final int MIN_YEAR = 1800;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private Validator() {
-    }
+    private Validator() {}
 
     /**
      * 校验地址码。只检查省级信息是否非空。
@@ -27,8 +26,8 @@ public final class Validator {
      * @return true 如果省级地址信息非空
      */
     public static boolean checkAddressCode(IdCode idCode, boolean strict) {
-        var addressInfo = AddressResolver.getAddressInfo(
-                idCode.getAddressCode(), idCode.getBirthdayCode(), strict);
+        List<String> addressInfo =
+                AddressResolver.getAddressInfo(idCode.getAddressCode(), idCode.getBirthdayCode(), strict);
         return !addressInfo.get(0).isEmpty();
     }
 

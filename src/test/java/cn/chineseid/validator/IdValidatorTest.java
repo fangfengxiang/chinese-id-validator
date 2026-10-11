@@ -1,13 +1,13 @@
 package cn.chineseid.validator;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.generator.FakeIdBuilder;
 import cn.chineseid.validator.model.BasicIdInfo;
 import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.Sex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * IdValidator 主 API 测试。
@@ -61,8 +61,11 @@ class IdValidatorTest {
     @Test
     @DisplayName("getInfo 返回完整信息")
     void shouldReturnFullInfo() {
-        String fakeId = IdValidator.fakeRequireId(
-                new FakeIdBuilder().eighteen().address("北京市").birthday("19900101").sex(Sex.MALE));
+        String fakeId = IdValidator.fakeRequireId(new FakeIdBuilder()
+                .eighteen()
+                .address("北京市")
+                .birthday("19900101")
+                .sex(Sex.MALE));
         IdInfo info = IdValidator.getInfo(fakeId, true);
 
         assertEquals(18, info.getLength().getLength());
@@ -78,8 +81,11 @@ class IdValidatorTest {
     @Test
     @DisplayName("getBasicInfo 返回不含地址的基础信息")
     void shouldReturnBasicInfo() {
-        String fakeId = IdValidator.fakeRequireId(
-                new FakeIdBuilder().eighteen().address("北京市").birthday("19900101").sex(Sex.FEMALE));
+        String fakeId = IdValidator.fakeRequireId(new FakeIdBuilder()
+                .eighteen()
+                .address("北京市")
+                .birthday("19900101")
+                .sex(Sex.FEMALE));
         BasicIdInfo info = IdValidator.getBasicInfo(fakeId);
 
         assertEquals(Sex.FEMALE, info.getSex());

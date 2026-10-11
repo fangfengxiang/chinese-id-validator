@@ -2,9 +2,7 @@ package cn.chineseid.validator.tools;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
@@ -84,8 +82,7 @@ public final class DataFileGenerator {
                 w.write('\n');
             }
         }
-        System.out.println("[OK] " + in.getFileName() + " -> " + out.getFileName()
-                + " (" + codes.size() + " 条)");
+        System.out.println("[OK] " + in.getFileName() + " -> " + out.getFileName() + " (" + codes.size() + " 条)");
     }
 
     /**
@@ -98,7 +95,7 @@ public final class DataFileGenerator {
         Path in = DATA_DIR.resolve("address_code_timeline.json");
         Path out = DATA_DIR.resolve("address_code_timeline.bin");
 
-        String json = Files.readString(in);
+        String json = new String(Files.readAllBytes(in), StandardCharsets.UTF_8);
         Type type = new TypeToken<Map<String, List<Map<String, String>>>>() {}.getType();
         Map<String, List<Map<String, String>>> raw = GSON.fromJson(json, type);
         if (raw == null) {
@@ -108,8 +105,8 @@ public final class DataFileGenerator {
         List<String> codes = new ArrayList<>(raw.keySet());
         codes.sort(Comparator.comparingInt(Integer::parseInt));
 
-        try (DataOutputStream dos = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(out.toFile())))) {
+        try (DataOutputStream dos =
+                new DataOutputStream(new BufferedOutputStream(new FileOutputStream(out.toFile())))) {
             dos.writeInt(codes.size());
             for (String code : codes) {
                 List<Map<String, String>> entries = raw.get(code);
@@ -125,14 +122,13 @@ public final class DataFileGenerator {
                 }
             }
         }
-        System.out.println("[OK] " + in.getFileName() + " -> " + out.getFileName()
-                + " (" + codes.size() + " 个地址码)");
+        System.out.println("[OK] " + in.getFileName() + " -> " + out.getFileName() + " (" + codes.size() + " 个地址码)");
     }
 
     // ---- 工具方法 ----------------------------------------------------------
 
     private static Map<String, String> readJsonMap(Path path) throws IOException {
-        String json = Files.readString(path);
+        String json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         Type type = new TypeToken<Map<String, String>>() {}.getType();
         Map<String, String> map = GSON.fromJson(json, type);
         if (map == null) {
@@ -160,11 +156,21 @@ public final class DataFileGenerator {
         for (int i = 0; i < v.length(); i++) {
             char c = v.charAt(i);
             switch (c) {
-                case '\\': sb.append("\\\\"); break;
-                case '\n': sb.append("\\n"); break;
-                case '\r': sb.append("\\r"); break;
-                case '\t': sb.append("\\t"); break;
-                case '\f': sb.append("\\f"); break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                case '\f':
+                    sb.append("\\f");
+                    break;
                 default:
                     if ((c == '#' || c == '!') && sb.length() == 0) {
                         sb.append('\\');
@@ -175,6 +181,5 @@ public final class DataFileGenerator {
         return sb.toString();
     }
 
-    private DataFileGenerator() {
-    }
+    private DataFileGenerator() {}
 }

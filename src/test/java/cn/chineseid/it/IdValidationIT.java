@@ -1,5 +1,7 @@
 package cn.chineseid.it;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.IdValidator;
 import cn.chineseid.validator.generator.FakeIdBuilder;
 import cn.chineseid.validator.model.BasicIdInfo;
@@ -8,8 +10,6 @@ import cn.chineseid.validator.model.IdType;
 import cn.chineseid.validator.model.Sex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 集成测试：验证 chinese-id-validator 公共 API 的端到端行为。
@@ -95,12 +95,11 @@ class IdValidationIT {
     @Test
     @DisplayName("按指定参数生成假身份证号")
     void shouldGenerateCustomizedFakeId() {
-        String fakeId = IdValidator.fakeRequireId(
-                new FakeIdBuilder()
-                        .eighteen()
-                        .address("北京市")
-                        .birthday("20000101")
-                        .sex(Sex.FEMALE));
+        String fakeId = IdValidator.fakeRequireId(new FakeIdBuilder()
+                .eighteen()
+                .address("北京市")
+                .birthday("20000101")
+                .sex(Sex.FEMALE));
 
         assertEquals(18, fakeId.length());
         assertTrue(IdValidator.isValid(fakeId, true));

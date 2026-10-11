@@ -3,7 +3,6 @@ package cn.chineseid.validator.generator;
 import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.TimelineEntry;
 import cn.chineseid.validator.util.StringUtil;
-
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
@@ -26,8 +25,7 @@ public final class BirthdayCodeGenerator {
     private static final int MAX_DAY = 31;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private BirthdayCodeGenerator() {
-    }
+    private BirthdayCodeGenerator() {}
 
     /**
      * 生成生日码。

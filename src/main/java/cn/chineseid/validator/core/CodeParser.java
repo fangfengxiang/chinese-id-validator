@@ -2,7 +2,7 @@ package cn.chineseid.validator.core;
 
 import cn.chineseid.validator.model.IdCode;
 import cn.chineseid.validator.model.IdType;
-
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -18,8 +18,7 @@ public final class CodeParser {
     /** 18 位身份证正则：(地址码(6) + 生日码(8) + 顺序码(3))(校验码(1)) — 校验码支持 0-9/X/x */
     private static final Pattern LONG_PATTERN = Pattern.compile("((\\d{6})(\\d{8})(\\d{3}))([0-9Xx])");
 
-    private CodeParser() {
-    }
+    private CodeParser() {}
 
     /**
      * 解析身份证号。
@@ -47,7 +46,7 @@ public final class CodeParser {
      * 解析 15 位身份证号。生日码前补 "19" 前缀。
      */
     private static IdCode parse15(String id) {
-        var matcher = SHORT_PATTERN.matcher(id);
+        Matcher matcher = SHORT_PATTERN.matcher(id);
         if (!matcher.matches()) {
             throw new IllegalArgumentException("Invalid 15-digit ID format: " + id);
         }
@@ -56,21 +55,14 @@ public final class CodeParser {
         String orderCode = matcher.group(3);
         String body = matcher.group(0);
 
-        return new IdCode(
-                body,
-                Integer.parseInt(addressCode),
-                birthdayCode,
-                orderCode,
-                "",
-                IdType.FIFTEEN
-        );
+        return new IdCode(body, Integer.parseInt(addressCode), birthdayCode, orderCode, "", IdType.FIFTEEN);
     }
 
     /**
      * 解析 18 位身份证号。
      */
     private static IdCode parse18(String id) {
-        var matcher = LONG_PATTERN.matcher(id);
+        Matcher matcher = LONG_PATTERN.matcher(id);
         if (!matcher.matches()) {
             throw new IllegalArgumentException("Invalid 18-digit ID format: " + id);
         }
@@ -80,13 +72,6 @@ public final class CodeParser {
         String orderCode = matcher.group(4);
         String checkBit = matcher.group(5).toUpperCase();
 
-        return new IdCode(
-                body,
-                Integer.parseInt(addressCode),
-                birthdayCode,
-                orderCode,
-                checkBit,
-                IdType.EIGHTEEN
-        );
+        return new IdCode(body, Integer.parseInt(addressCode), birthdayCode, orderCode, checkBit, IdType.EIGHTEEN);
     }
 }

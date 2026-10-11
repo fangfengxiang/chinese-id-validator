@@ -1,7 +1,6 @@
 package cn.chineseid.validator.data;
 
 import cn.chineseid.validator.model.TimelineEntry;
-
 import java.util.Collections;
 import java.util.List;
 
@@ -15,8 +14,7 @@ public final class NoopCustomDataSource implements CustomDataSource {
 
     public static final NoopCustomDataSource INSTANCE = new NoopCustomDataSource();
 
-    private NoopCustomDataSource() {
-    }
+    private NoopCustomDataSource() {}
 
     @Override
     public List<TimelineEntry> getTimeline(int code) {

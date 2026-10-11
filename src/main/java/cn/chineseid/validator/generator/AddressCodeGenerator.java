@@ -2,7 +2,6 @@ package cn.chineseid.validator.generator;
 
 import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.AddressClassification;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class AddressCodeGenerator {
 
-    private AddressCodeGenerator() {
-    }
+    private AddressCodeGenerator() {}
 
     /**
      * 根据地址名称生成地址码。
@@ -28,7 +26,8 @@ public final class AddressCodeGenerator {
         // 1. 按名称查找地址码
         String addressCode = "";
         if (address != null && !address.isEmpty()) {
-            for (Map.Entry<Integer, String> entry : DataProvider.getInstance().getAllAddressCodes().entrySet()) {
+            for (Map.Entry<Integer, String> entry :
+                    DataProvider.getInstance().getAllAddressCodes().entrySet()) {
                 if (address.equals(entry.getValue())) {
                     addressCode = String.format("%06d", entry.getKey());
                     break;
@@ -81,7 +80,8 @@ public final class AddressCodeGenerator {
      */
     private static String getRandomDistrictCode(String prefix) {
         List<String> candidates = new ArrayList<>();
-        for (Map.Entry<Integer, String> entry : DataProvider.getInstance().getAllAddressCodes().entrySet()) {
+        for (Map.Entry<Integer, String> entry :
+                DataProvider.getInstance().getAllAddressCodes().entrySet()) {
             String keyStr = String.format("%06d", entry.getKey());
             if (!prefix.isEmpty() && !keyStr.startsWith(prefix)) {
                 continue;

@@ -16,8 +16,7 @@ public final class ChineseZodiacCalculator {
     /** 生肖总数 */
     private static final int ZODIAC_COUNT = 12;
 
-    private ChineseZodiacCalculator() {
-    }
+    private ChineseZodiacCalculator() {}
 
     /**
      * 根据生日码计算生肖。

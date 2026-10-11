@@ -16,17 +16,12 @@ package cn.chineseid.validator.core;
 public final class CheckBitCalculator {
 
     /** GB 11643-1999 标准权重 */
-    private static final int[] WEIGHTS = {
-            7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2
-    };
+    private static final int[] WEIGHTS = {7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2};
 
     /** 校验码对照表：(12 - (sum % 11)) % 11 → 字符 */
-    private static final char[] CHECK_BITS = {
-            '1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'
-    };
+    private static final char[] CHECK_BITS = {'1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'};
 
-    private CheckBitCalculator() {
-    }
+    private CheckBitCalculator() {}
 
     /**
      * 计算 17 位 body 的校验码。
@@ -37,8 +32,8 @@ public final class CheckBitCalculator {
      */
     public static String calculate(String body) {
         if (body == null || body.length() != 17) {
-            throw new IllegalArgumentException("body must be 17 digits, got: "
-                    + (body == null ? "null" : body.length()));
+            throw new IllegalArgumentException(
+                    "body must be 17 digits, got: " + (body == null ? "null" : body.length()));
         }
 
         int sum = 0;

@@ -2,6 +2,7 @@ package cn.chineseid.validator.util;
 
 import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.ConstellationData;
+import java.util.List;
 
 /**
  * 星座计算器。
@@ -11,8 +12,7 @@ import cn.chineseid.validator.model.ConstellationData;
  */
 public final class ConstellationCalculator {
 
-    private ConstellationCalculator() {
-    }
+    private ConstellationCalculator() {}
 
     /**
      * 根据生日码计算星座。
@@ -64,7 +64,7 @@ public final class ConstellationCalculator {
      * 数组索引 0 = 1 月星座, 索引 1 = 2 月星座, ..., 索引 11 = 12 月星座
      */
     private static ConstellationData getConstellation(int month) {
-        var constellations = DataProvider.getInstance().getConstellations();
+        List<ConstellationData> constellations = DataProvider.getInstance().getConstellations();
         // 星座数据数组索引 0-11 对应月份 1-12
         int index = month - 1;
         if (index < 0 || index >= constellations.size()) {

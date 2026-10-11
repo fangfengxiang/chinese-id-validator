@@ -1,10 +1,10 @@
 package cn.chineseid.validator;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.util.ChineseZodiacCalculator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 生肖计算器单元测试。

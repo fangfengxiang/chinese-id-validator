@@ -1,12 +1,11 @@
 package cn.chineseid.validator;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.util.AddressResolver;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 地址解析器单元测试。

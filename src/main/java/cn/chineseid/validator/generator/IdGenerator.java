@@ -2,8 +2,8 @@ package cn.chineseid.validator.generator;
 
 import cn.chineseid.validator.core.CheckBitCalculator;
 import cn.chineseid.validator.data.DataProvider;
-
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -14,12 +14,12 @@ public final class IdGenerator {
 
     /** 15 位身份证号支持的年份范围 [1900, 1999]（升级时补 "19" 前缀） */
     private static final int FIFTEEN_BIT_YEAR_MIN = 1900;
+
     private static final int FIFTEEN_BIT_YEAR_MAX = 1999;
     /** 随机年份替换范围下限 */
     private static final int RANDOM_YEAR_MIN = 1950;
 
-    private IdGenerator() {
-    }
+    private IdGenerator() {}
 
     /**
      * 生成随机假身份证号（18 位）。
@@ -41,9 +41,10 @@ public final class IdGenerator {
 
         if (builder.getAddress().isEmpty()) {
             // 随机选取一个地址码及其名称
-            var entries = new ArrayList<Map.Entry<Integer, String>>(
+            List<Map.Entry<Integer, String>> entries = new ArrayList<>(
                     DataProvider.getInstance().getAllAddressCodes().entrySet());
-            var entry = entries.get(ThreadLocalRandom.current().nextInt(entries.size()));
+            Map.Entry<Integer, String> entry =
+                    entries.get(ThreadLocalRandom.current().nextInt(entries.size()));
             addressCode = String.format("%06d", entry.getKey());
             address = entry.getValue();
         } else {
@@ -63,8 +64,8 @@ public final class IdGenerator {
             // 年份超出此范围的替换为 [1950, 1999] 范围内的随机年份
             int year = Integer.parseInt(birthdayCode.substring(0, 4));
             if (year < FIFTEEN_BIT_YEAR_MIN || year > FIFTEEN_BIT_YEAR_MAX) {
-                year = ThreadLocalRandom.current().nextInt(
-                        FIFTEEN_BIT_YEAR_MAX - RANDOM_YEAR_MIN + 1) + RANDOM_YEAR_MIN;
+                year = ThreadLocalRandom.current().nextInt(FIFTEEN_BIT_YEAR_MAX - RANDOM_YEAR_MIN + 1)
+                        + RANDOM_YEAR_MIN;
                 birthdayCode = year + birthdayCode.substring(4);
             }
             // 去掉生日码前 2 位 "19"

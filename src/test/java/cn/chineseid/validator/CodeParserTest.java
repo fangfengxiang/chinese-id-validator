@@ -1,12 +1,12 @@
 package cn.chineseid.validator;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.core.CodeParser;
 import cn.chineseid.validator.model.IdCode;
 import cn.chineseid.validator.model.IdType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 身份证号解析器单元测试。

@@ -1,19 +1,18 @@
 package cn.chineseid.it;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.IdValidator;
 import cn.chineseid.validator.data.CustomDataSource;
 import cn.chineseid.validator.data.MergeMode;
 import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.TimelineEntry;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * 集成测试：自定义数据源 SPI 两种合并策略端到端验证。
@@ -53,9 +52,8 @@ class CustomDataSourceIT {
         private final Map<Integer, String> addressNames;
         private final Map<Integer, List<TimelineEntry>> timelines;
 
-        CustomTestSource(MergeMode mode,
-                         Map<Integer, String> addressNames,
-                         Map<Integer, List<TimelineEntry>> timelines) {
+        CustomTestSource(
+                MergeMode mode, Map<Integer, String> addressNames, Map<Integer, List<TimelineEntry>> timelines) {
             this.mode = mode;
             this.addressNames = (addressNames == null) ? Collections.emptyMap() : addressNames;
             this.timelines = (timelines == null) ? Collections.emptyMap() : timelines;
@@ -84,9 +82,9 @@ class CustomDataSourceIT {
     void fallbackShouldUseBuiltinWhenPresent() {
         CustomDataSource source = new CustomTestSource(
                 MergeMode.FALLBACK,
-                Map.of(BUILTIN_CODE, "自定义东城区"),
-                Map.of(BUILTIN_CODE, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(BUILTIN_CODE, "自定义东城区"),
+                Collections.singletonMap(
+                        BUILTIN_CODE, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(BUILTIN_CODE, "19900307");
@@ -102,8 +100,8 @@ class CustomDataSourceIT {
         CustomDataSource source = new CustomTestSource(
                 MergeMode.FALLBACK,
                 Collections.emptyMap(),
-                Map.of(MISSING_CODE, List.of(new TimelineEntry("补充测试区", "1990", "2020")))
-        );
+                Collections.singletonMap(
+                        MISSING_CODE, Collections.singletonList(new TimelineEntry("补充测试区", "1990", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(MISSING_CODE, "19950101");
@@ -119,9 +117,9 @@ class CustomDataSourceIT {
     void mergeShouldOverrideWithCustomWhenPresent() {
         CustomDataSource source = new CustomTestSource(
                 MergeMode.MERGE,
-                Map.of(BUILTIN_CODE, "自定义东城区"),
-                Map.of(BUILTIN_CODE, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(BUILTIN_CODE, "自定义东城区"),
+                Collections.singletonMap(
+                        BUILTIN_CODE, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(BUILTIN_CODE, "19900307");
@@ -136,8 +134,8 @@ class CustomDataSourceIT {
         CustomDataSource source = new CustomTestSource(
                 MergeMode.MERGE,
                 Collections.emptyMap(),
-                Map.of(MISSING_CODE, List.of(new TimelineEntry("合并测试区", "1990", "2020")))
-        );
+                Collections.singletonMap(
+                        MISSING_CODE, Collections.singletonList(new TimelineEntry("合并测试区", "1990", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(MISSING_CODE, "19950101");
@@ -149,11 +147,7 @@ class CustomDataSourceIT {
     @Test
     @DisplayName("MERGE 模式：自定义无数据时回退内置")
     void mergeShouldFallbackToBuiltinWhenCustomEmpty() {
-        CustomDataSource source = new CustomTestSource(
-                MergeMode.MERGE,
-                Collections.emptyMap(),
-                Collections.emptyMap()
-        );
+        CustomDataSource source = new CustomTestSource(MergeMode.MERGE, Collections.emptyMap(), Collections.emptyMap());
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(BUILTIN_CODE, "19900307");
@@ -169,9 +163,9 @@ class CustomDataSourceIT {
     void shouldRestoreBuiltinOnlyAfterClear() {
         CustomDataSource source = new CustomTestSource(
                 MergeMode.MERGE,
-                Map.of(BUILTIN_CODE, "自定义东城区"),
-                Map.of(BUILTIN_CODE, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(BUILTIN_CODE, "自定义东城区"),
+                Collections.singletonMap(
+                        BUILTIN_CODE, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
         IdValidator.clearCustomDataSource();
 

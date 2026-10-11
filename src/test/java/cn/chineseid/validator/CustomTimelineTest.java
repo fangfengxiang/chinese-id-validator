@@ -1,18 +1,17 @@
 package cn.chineseid.validator;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import cn.chineseid.validator.data.CustomDataSource;
 import cn.chineseid.validator.data.MergeMode;
 import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.TimelineEntry;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * 自定义数据源单元测试。
@@ -47,10 +46,7 @@ class CustomTimelineTest {
         // 110101（东城区）内置有数据，自定义源提供不同的地址名
         // FALLBACK 模式下应返回内置数据，不使用自定义
         CustomDataSource source = new TestDataSource(
-                MergeMode.FALLBACK,
-                Map.of(110101, "自定义东城区"),
-                Collections.emptyMap()
-        );
+                MergeMode.FALLBACK, Collections.singletonMap(110101, "自定义东城区"), Collections.emptyMap());
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110101, "19900307");
@@ -67,8 +63,7 @@ class CustomTimelineTest {
         CustomDataSource source = new TestDataSource(
                 MergeMode.FALLBACK,
                 Collections.emptyMap(),
-                Map.of(110999, List.of(new TimelineEntry("测试区", "1990", "2020")))
-        );
+                Collections.singletonMap(110999, Collections.singletonList(new TimelineEntry("测试区", "1990", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110999, "19950101");
@@ -87,9 +82,9 @@ class CustomTimelineTest {
         // MERGE 模式下自定义条目排在前面优先匹配
         CustomDataSource source = new TestDataSource(
                 MergeMode.MERGE,
-                Map.of(110101, "自定义东城区"),
-                Map.of(110101, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(110101, "自定义东城区"),
+                Collections.singletonMap(
+                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110101, "19900307");
@@ -102,11 +97,7 @@ class CustomTimelineTest {
     @DisplayName("MERGE 模式：自定义无数据时回退内置")
     void shouldFallbackToBuiltinWhenCustomEmptyInMergeMode() {
         // 110101 内置有数据，自定义源返回空
-        CustomDataSource source = new TestDataSource(
-                MergeMode.MERGE,
-                Collections.emptyMap(),
-                Collections.emptyMap()
-        );
+        CustomDataSource source = new TestDataSource(MergeMode.MERGE, Collections.emptyMap(), Collections.emptyMap());
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110101, "19900307");
@@ -122,8 +113,7 @@ class CustomTimelineTest {
         CustomDataSource source = new TestDataSource(
                 MergeMode.MERGE,
                 Collections.emptyMap(),
-                Map.of(110999, List.of(new TimelineEntry("测试区", "1990", "2020")))
-        );
+                Collections.singletonMap(110999, Collections.singletonList(new TimelineEntry("测试区", "1990", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110999, "19950101");
@@ -141,9 +131,9 @@ class CustomTimelineTest {
         // 内置 110101 有数据，FALLBACK 下不查自定义，应返回内置
         CustomDataSource source = new TestDataSource(
                 null, // null = 不 override，用默认 FALLBACK
-                Map.of(110101, "自定义东城区"),
-                Map.of(110101, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(110101, "自定义东城区"),
+                Collections.singletonMap(
+                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
 
         String id = buildValidId(110101, "19900307");
@@ -158,9 +148,9 @@ class CustomTimelineTest {
     void shouldRestoreAfterClear() {
         CustomDataSource source = new TestDataSource(
                 MergeMode.MERGE,
-                Map.of(110101, "自定义东城区"),
-                Map.of(110101, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
-        );
+                Collections.singletonMap(110101, "自定义东城区"),
+                Collections.singletonMap(
+                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1980", "2020"))));
         IdValidator.setCustomDataSource(source);
         IdValidator.clearCustomDataSource();
 
@@ -195,9 +185,7 @@ class CustomTimelineTest {
         private final Map<Integer, String> addressNames;
         private final Map<Integer, List<TimelineEntry>> timelines;
 
-        TestDataSource(MergeMode mode,
-                       Map<Integer, String> addressNames,
-                       Map<Integer, List<TimelineEntry>> timelines) {
+        TestDataSource(MergeMode mode, Map<Integer, String> addressNames, Map<Integer, List<TimelineEntry>> timelines) {
             this.mode = mode;
             this.addressNames = (addressNames == null) ? Collections.emptyMap() : addressNames;
             this.timelines = (timelines == null) ? Collections.emptyMap() : timelines;

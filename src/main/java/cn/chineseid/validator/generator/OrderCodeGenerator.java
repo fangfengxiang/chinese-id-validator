@@ -1,7 +1,6 @@
 package cn.chineseid.validator.generator;
 
 import cn.chineseid.validator.model.Sex;
-
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -15,8 +14,7 @@ public final class OrderCodeGenerator {
     private static final int MIN_ORDER = 111;
     private static final int MAX_ORDER = 999;
 
-    private OrderCodeGenerator() {
-    }
+    private OrderCodeGenerator() {}
 
     /**
      * 生成顺序码。

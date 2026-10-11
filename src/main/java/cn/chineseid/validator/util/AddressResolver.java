@@ -1,13 +1,8 @@
 package cn.chineseid.validator.util;
 
 import cn.chineseid.validator.data.DataProvider;
-import cn.chineseid.validator.model.ConstellationData;
 import cn.chineseid.validator.model.TimelineEntry;
-
-import java.time.LocalDate;
-import java.time.Year;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,8 +20,7 @@ public final class AddressResolver {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private AddressResolver() {
-    }
+    private AddressResolver() {}
 
     /**
      * 获取省市区地址信息。

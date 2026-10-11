@@ -67,9 +67,7 @@ public final class TimelineEntry {
         if (this == o) return true;
         if (!(o instanceof TimelineEntry)) return false;
         TimelineEntry that = (TimelineEntry) o;
-        return address.equals(that.address)
-                && startYear.equals(that.startYear)
-                && endYear.equals(that.endYear);
+        return address.equals(that.address) && startYear.equals(that.startYear) && endYear.equals(that.endYear);
     }
 
     @Override

@@ -14,9 +14,8 @@ public final class BasicIdInfo {
     private final IdType length;
     private final String checkBit;
 
-    public BasicIdInfo(LocalDate birthday, String constellation,
-                       String chineseZodiac, Sex sex,
-                       IdType length, String checkBit) {
+    public BasicIdInfo(
+            LocalDate birthday, String constellation, String chineseZodiac, Sex sex, IdType length, String checkBit) {
         this.birthday = birthday;
         this.constellation = constellation;
         this.chineseZodiac = chineseZodiac;

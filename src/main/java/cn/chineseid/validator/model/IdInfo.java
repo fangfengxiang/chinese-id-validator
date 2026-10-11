@@ -30,15 +30,22 @@ public final class IdInfo {
     /** 校验码 */
     private final String checkBit;
 
-    public IdInfo(int addressCode, int abandoned, String address,
-                  List<String> addressTree, LocalDate birthday,
-                  String constellation, String chineseZodiac,
-                  Sex sex, IdType length, String checkBit) {
+    public IdInfo(
+            int addressCode,
+            int abandoned,
+            String address,
+            List<String> addressTree,
+            LocalDate birthday,
+            String constellation,
+            String chineseZodiac,
+            Sex sex,
+            IdType length,
+            String checkBit) {
         this.addressCode = addressCode;
         this.abandoned = abandoned;
         this.address = address;
-        this.addressTree = Collections.unmodifiableList(
-                Objects.requireNonNull(addressTree, "addressTree must not be null"));
+        this.addressTree =
+                Collections.unmodifiableList(Objects.requireNonNull(addressTree, "addressTree must not be null"));
         this.birthday = birthday;
         this.constellation = constellation;
         this.chineseZodiac = chineseZodiac;

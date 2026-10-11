@@ -20,8 +20,7 @@ public final class IdCode {
     /** 身份证类型 */
     private final IdType type;
 
-    public IdCode(String body, int addressCode, String birthdayCode,
-                  String orderCode, String checkBit, IdType type) {
+    public IdCode(String body, int addressCode, String birthdayCode, String orderCode, String checkBit, IdType type) {
         this.body = Objects.requireNonNull(body, "body must not be null");
         this.addressCode = addressCode;
         this.birthdayCode = Objects.requireNonNull(birthdayCode, "birthdayCode must not be null");

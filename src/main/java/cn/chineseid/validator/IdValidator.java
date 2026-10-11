@@ -13,9 +13,8 @@ import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.IdType;
 import cn.chineseid.validator.model.Sex;
 import cn.chineseid.validator.util.AddressResolver;
-import cn.chineseid.validator.util.ConstellationCalculator;
 import cn.chineseid.validator.util.ChineseZodiacCalculator;
-
+import cn.chineseid.validator.util.ConstellationCalculator;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -29,8 +28,7 @@ public final class IdValidator {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private IdValidator() {
-    }
+    private IdValidator() {}
 
     // ==================== 验证 API ====================
 
@@ -105,13 +103,14 @@ public final class IdValidator {
 
         IdCode code = CodeParser.parse(id);
 
-        List<String> addressInfo = AddressResolver.getAddressInfo(
-                code.getAddressCode(), code.getBirthdayCode(), strict);
+        List<String> addressInfo =
+                AddressResolver.getAddressInfo(code.getAddressCode(), code.getBirthdayCode(), strict);
         String province = addressInfo.get(0);
         String city = addressInfo.get(1);
         String district = addressInfo.get(2);
 
-        int abandoned = DataProvider.getInstance().getAddressName(code.getAddressCode()).isEmpty() ? 1 : 0;
+        int abandoned =
+                DataProvider.getInstance().getAddressName(code.getAddressCode()).isEmpty() ? 1 : 0;
 
         LocalDate birthday = LocalDate.parse(code.getBirthdayCode(), DATE_FORMATTER);
 
@@ -128,8 +127,7 @@ public final class IdValidator {
                 ChineseZodiacCalculator.calculate(code.getBirthdayCode()),
                 sex,
                 code.getType(),
-                code.getCheckBit()
-        );
+                code.getCheckBit());
     }
 
     /**
@@ -156,8 +154,7 @@ public final class IdValidator {
                 ChineseZodiacCalculator.calculate(code.getBirthdayCode()),
                 sex,
                 code.getType(),
-                code.getCheckBit()
-        );
+                code.getCheckBit());
     }
 
     // ==================== 假号生成 API ====================
@@ -198,9 +195,7 @@ public final class IdValidator {
             throw new IllegalArgumentException("ID must be 15 digits, got: " + id.length());
         }
 
-        String body = String.format("%06d", code.getAddressCode())
-                + code.getBirthdayCode()
-                + code.getOrderCode();
+        String body = String.format("%06d", code.getAddressCode()) + code.getBirthdayCode() + code.getOrderCode();
 
         return body + CheckBitCalculator.calculate(body);
     }

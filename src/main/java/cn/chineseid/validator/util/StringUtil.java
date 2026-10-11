@@ -5,8 +5,7 @@ package cn.chineseid.validator.util;
  */
 public final class StringUtil {
 
-    private StringUtil() {
-    }
+    private StringUtil() {}
 
     /**
      * 字符串截取（start 和 end 均为位置索引，非长度）。

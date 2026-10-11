@@ -1,7 +1,6 @@
 package cn.chineseid.validator.data;
 
 import cn.chineseid.validator.model.TimelineEntry;
-
 import java.util.List;
 
 /**
