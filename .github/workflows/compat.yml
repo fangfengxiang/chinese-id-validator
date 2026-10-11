@@ -1,0 +1,102 @@
+name: Compat
+
+# 多 JDK 兼容性测试：CI 全绿后自动触发（workflow_run）+ 手动触发（workflow_dispatch）。
+# 矩阵在 JDK 8/11/17/21/25 原生 Temurin JDK 上跑全量测试（单测 + 集成测试），
+# 验证库产出的 Java 8 字节码在所有主版本上兼容。
+# report job 把各 JDK 结果聚合成横向对比表（Summary 页）。
+# 与 ci.yml 的语义分工：ci.yml 是"全绿才能合"的正确性门禁，这里是"跨 JDK 兼容验证"。
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 兼容性矩阵：JDK 8→25 各主版本（8/11/17/21/25）在原生 Temurin JDK 上跑全量测试（单测 + 集成测试）。
+  # 不测 9/10 等非 LTS 版本：无官方 Temurin 渠道，且 Java 8 字节码在其上的行为与 11 无实质差异。
+  # if 守卫：workflow_run 触发时仅 CI 成功才跑；workflow_dispatch 手动触发不受限。
+  compat-test:
+    name: Compat tests (JDK ${{ matrix.java }})
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['8', '11', '17', '21', '25']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # 跳过 Spotless（palantir 需 JDK 21 工具链）、SpotBugs（同一份字节码由 CI 的 static-analysis 统一扫）
+      # 和 JaCoCo（覆盖率只由 CI 的 unit/integration 阶段上传）
+      - name: Run all tests
+        id: tests
+        run: mvn -B clean verify -Dspotless.check.skip=true -Dspotbugs.skip=true -Djacoco.skip=true | tee mvn.log
+
+      # 机器可读结果行（pass|测试总数），供 report job 汇总成表；grep 正则末尾 $ 排除 per-class 行
+      - name: Collect result
+        if: always()
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            total=$(grep -E 'Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' mvn.log \
+              | grep -oE 'Tests run: [0-9]+' | grep -oE '[0-9]+' | awk '{s+=$1} END {print s}')
+            echo "pass|${total:-0}" > "compat-result-jdk${{ matrix.java }}.txt"
+          else
+            echo "fail|0" > "compat-result-jdk${{ matrix.java }}.txt"
+          fi
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-result-jdk-${{ matrix.java }}
+          path: compat-result-jdk${{ matrix.java }}.txt
+          retention-days: 1
+
+  # 汇总：把 compat-test 矩阵的散点 artifact 聚合成 Markdown 表格（workflow Summary 页）。
+  # if: always()：任何腿失败也出表，缺失数据标 ❌。
+  report:
+    name: Compat report
+    needs: [compat-test]
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    steps:
+      # continue-on-error：矩阵整体被跳过（CI 失败）时零匹配会抛错，
+      # 放行后由下方脚本的"缺数据标 ❌"降级分支兜底
+      - name: Download compat results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: compat-result-jdk-*
+          merge-multiple: true
+
+      - name: Build summary table
+        run: |
+          {
+            echo "## 多 JDK 兼容测试（原生 Temurin JDK）"
+            echo ""
+            echo "| JDK | 结果 | 测试总数 |"
+            echo "|---|---|---|"
+            for v in 8 11 17 21 25; do
+              f="compat-result-jdk${v}.txt"
+              if [ -s "$f" ]; then
+                IFS='|' read -r status total < "$f"
+                [ "$status" = "pass" ] && mark="✅ 通过" || mark="❌ 失败"
+                echo "| ${v} | ${mark} | ${total} |"
+              else
+                echo "| ${v} | ❌ 失败 | — |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
