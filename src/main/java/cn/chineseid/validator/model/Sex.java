@@ -25,7 +25,8 @@ public enum Sex {
      * @return Sex 枚举值
      */
     public static Sex fromOrderDigit(int orderCodeLastDigit) {
-        return orderCodeLastDigit % 2 == 1 ? MALE : FEMALE;
+        // 负数取模结果为负，须用 != 0 判定奇偶（IM_BAD_CHECK_FOR_ODD）
+        return orderCodeLastDigit % 2 != 0 ? MALE : FEMALE;
     }
 
     /**

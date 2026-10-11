@@ -154,10 +154,10 @@ public final class DataProvider {
     }
 
     /**
-     * 获取星座数据列表。
+     * 获取星座数据列表（防御性拷贝，调用方改动不影响内部数据）。
      */
     public List<ConstellationData> getConstellations() {
-        return CONSTELLATIONS;
+        return new ArrayList<>(CONSTELLATIONS);
     }
 
     /**
