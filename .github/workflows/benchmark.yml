@@ -49,7 +49,7 @@ jobs:
 
       - name: Upload JMH result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jmh-result-jdk-${{ matrix.java }}
           path: jmh-result-jdk${{ matrix.java }}.json
@@ -58,7 +58,7 @@ jobs:
       # 原始文本输出留存（含完整 JMH 输出），供排查异常数字
       - name: Upload JMH raw output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jmh-output-jdk-${{ matrix.java }}
           path: jmh-output.txt

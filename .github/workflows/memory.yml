@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload probe result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: probe-result-jdk-${{ matrix.java }}
           path: probe-result-jdk${{ matrix.java }}.txt
@@ -72,7 +72,7 @@ jobs:
       # 原始输出留存（含探针打印的完整明细），供排查异常数字
       - name: Upload probe raw output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: probe-output-jdk-${{ matrix.java }}
           path: probe-output.txt

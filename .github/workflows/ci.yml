@@ -56,7 +56,7 @@ jobs:
       # 报告留存：失败时可在 Artifacts 下载 XML 详情（含每个 bug 的类/行号/模式说明）
       - name: Upload SpotBugs report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spotbugs-report
           path: target/spotbugsXml.xml
