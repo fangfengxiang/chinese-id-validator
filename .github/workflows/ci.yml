@@ -84,7 +84,7 @@ jobs:
 
       # 公开仓库免 token；若仓库转私有需在 Settings 配 CODECOV_TOKEN
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: target/site/jacoco/jacoco.xml
           flags: unit
@@ -110,7 +110,7 @@ jobs:
         run: mvn -B clean verify -Dsurefire.skip=true -Dspotbugs.skip=true
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: target/site/jacoco/jacoco.xml
           flags: integration
