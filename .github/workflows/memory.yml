@@ -126,7 +126,7 @@ jobs:
       # 用 Checks API 显式创建（name 即弹窗条目名，Details 直达本 run）
       - name: Publish check to source commit
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
