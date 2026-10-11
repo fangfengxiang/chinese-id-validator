@@ -1,6 +1,10 @@
 name: CI
 
-# 每次 push 到 main、或 PR，自动跑全量测试 + 内存探针
+# 每次 push 到 main、或 PR：style-check 先行，通过后多路并行——
+#   static-analysis（SpotBugs 门禁）、unit-test → integration-test（串行）
+# 兼容性测试在 compat.yml、内存测量在 memory.yml、性能基准在 benchmark.yml：
+#   均 CI 全绿后自动触发（workflow_run），也可手动触发
+# 构建工具链统一 JDK 21（Spotless/palantir、SpotBugs 需要），产出字节码为 Java 8（pom 里 --release 8）
 on:
   push:
     branches: [main]
@@ -11,58 +15,107 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Run tests
+  style-check:
+    name: Style check
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup JDK 11
+      - name: Setup JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '21'
           cache: maven
 
-      - name: Verify (unit + integration tests)
-        run: mvn -B clean verify
+      - name: Spotless check
+        run: mvn -B spotless:check
 
-  memory-probe:
-    name: Memory probe
+  # 静态分析：SpotBugs 字节码级 bug 检测（与源码级检查互补，抓 equals/hashCode 不配对、
+  # 默认字符集、getter 泄露内部可变引用等）。确定性分析无噪声，适合门禁：发现 bug 即红。
+  # 同一份 Java 8 字节码只扫一次，integration-test 里显式 skip。
+  static-analysis:
+    name: Static analysis (SpotBugs)
+    needs: style-check
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup JDK 11
+      - name: Setup JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '21'
           cache: maven
 
-      - name: Compile main project
-        run: mvn -B compile
+      - name: SpotBugs check
+        run: mvn -B compile spotbugs:check
 
-      - name: Compile memory probe
-        run: |
-          mkdir -p test/out
-          javac -cp target/classes -d test/out test/MemoryProbe.java
-
-      - name: Run memory probe
-        run: |
-          java -Xmx128m -cp target/classes:test/out MemoryProbe all | tee probe-output.txt
-
-      - name: Publish to step summary
+      # 报告留存：失败时可在 Artifacts 下载 XML 详情（含每个 bug 的类/行号/模式说明）
+      - name: Upload SpotBugs report
         if: always()
-        run: |
-          {
-            echo "## 数据内存占用"
-            echo ""
-            echo "> 每次 push / PR 自动测量，环境：ubuntu-24.04 + Temurin JRE 11 + \`-Xmx128m\`"
-            echo ""
-            echo '```'
-            cat probe-output.txt 2>/dev/null || echo "(探针输出不可用，请检查前序步骤)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotbugs-report
+          path: target/spotbugsXml.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  unit-test:
+    name: Unit tests
+    needs: style-check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # clean test：编译 + surefire 单元测试（*Test.java），jacoco 在 test 阶段出覆盖率报告
+      - name: Unit tests
+        run: mvn -B clean test
+
+      # 需在 Settings 配 CODECOV_TOKEN（codecov.io 仓库页获取）；
+      # fail_ci_if_error: 上传失败即红，避免静默丢覆盖率
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/site/jacoco/jacoco.xml
+          flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
+  integration-test:
+    name: Integration tests
+    needs: unit-test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # -Dsurefire.skip=true 只跳过 surefire，failsafe 集成测试（*IT.java）照常执行；
+      # SpotBugs 由 static-analysis job 统一把关，这里跳过避免重复
+      - name: Integration tests
+        run: mvn -B clean verify -Dsurefire.skip=true -Dspotbugs.skip=true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/site/jacoco/jacoco.xml
+          flags: integration
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

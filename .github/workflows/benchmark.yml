@@ -1,0 +1,152 @@
+name: Benchmark
+
+# JMH 性能基准：CI 全绿后自动触发（workflow_run）+ 手动触发（workflow_dispatch）。
+# 多 JDK 矩阵并行跑（8/11/17/21/25），report job 把各 JDK 结果聚合成横向对比表（Summary 页）。
+# 噪声说明：CI 共享 runner 时间噪声 ±30%，数字仅供横向/跨 JDK 参考而非精确回归判定。
+# 业界同款做法：Kafka（jmh.sh 手动跑）、Caffeine（本地/手动）。
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # JMH 矩阵：各 JDK 独立 runner，编译同一份 benchmark uber-jar 并跑 JMH。
+  # 不同 JDK 的 JIT 实现有真实差异（C2/GC 演进、compact strings、compact object headers），
+  # 分版本测量给使用者完整的性能画像。
+  # if 守卫：workflow_run 触发时仅 CI 成功才跑；workflow_dispatch 手动触发不受限。
+  jmh:
+    name: JMH benchmark (JDK ${{ matrix.java }})
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['8', '11', '17', '21', '25']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # -Pbenchmark 激活 src/jmh/java 源集 + shade uber-jar（见 pom.xml benchmark profile）
+      - name: Build benchmarks
+        run: mvn -B -Pbenchmark package -DskipTests -Dspotless.check.skip=true -Dspotbugs.skip=true
+
+      # -rf json -rff：官方 JSON 结果文件（含 benchmark 名、score、scoreError、unit），供 report job 汇总
+      - name: Run JMH
+        run: java -jar target/*-benchmarks.jar -rf json -rff jmh-result-jdk${{ matrix.java }}.json | tee jmh-output.txt
+
+      - name: Upload JMH result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-result-jdk-${{ matrix.java }}
+          path: jmh-result-jdk${{ matrix.java }}.json
+          retention-days: 1
+
+      # 原始文本输出留存（含完整 JMH 输出），供排查异常数字
+      - name: Upload JMH raw output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-output-jdk-${{ matrix.java }}
+          path: jmh-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 汇总：把各 JDK 的 JMH JSON 聚合成横向对比表（benchmark 行 × JDK 列），直观看跨版本数值差异。
+  # if: always()：任何腿失败也出表，缺失数据标 ❌。
+  report:
+    name: Benchmark report
+    needs: [jmh]
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    # checks: write —— 把汇总结果作为 check run 挂回源提交（workflow_run 触发的 run 不自动挂）
+    permissions:
+      checks: write
+    steps:
+      # continue-on-error：矩阵整体被跳过（CI 失败）时零匹配会抛错，
+      # 放行后由下方脚本的"缺数据标 ❌"降级分支兜底
+      - name: Download JMH results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: jmh-result-jdk-*
+          merge-multiple: true
+
+      - name: Build comparison table
+        run: |
+          {
+            echo "## JMH 基准结果（多 JDK 对比）"
+            echo ""
+            echo "| Benchmark | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 | Unit |"
+            echo "|---|---|---|---|---|---|---|"
+            # 收集所有 JDK JSON 中出现过的 benchmark 全名（去重排序），确保行顺序稳定
+            benchmarks=""
+            for v in 8 11 17 21 25; do
+              f="jmh-result-jdk${v}.json"
+              [ -s "$f" ] && benchmarks="$(printf '%s\n%s' "$benchmarks" "$(jq -r '.[].benchmark' "$f" 2>/dev/null)")"
+            done
+            benchmarks=$(echo "$benchmarks" | grep -v '^$' | sort -u)
+            for bench in $benchmarks; do
+              short=$(echo "$bench" | sed 's/.*\.//')
+              row="| \`${short}\` |"
+              unit="—"
+              for v in 8 11 17 21 25; do
+                f="jmh-result-jdk${v}.json"
+                if [ -s "$f" ]; then
+                  data=$(jq -r --arg b "$bench" \
+                    '.[] | select(.benchmark == $b) | "\(.primaryMetric.score)|\(.primaryMetric.scoreError // 0)|\(.primaryMetric.scoreUnit // "")"' \
+                    "$f" 2>/dev/null)
+                  if [ -n "$data" ]; then
+                    score=$(echo "$data" | cut -d'|' -f1)
+                    error=$(echo "$data" | cut -d'|' -f2)
+                    unit=$(echo "$data" | cut -d'|' -f3)
+                    cell=$(printf "%.2f ± %.2f" "$score" "$error")
+                    row="${row} ${cell} |"
+                  else
+                    row="${row} — |"
+                  fi
+                else
+                  row="${row} ❌ |"
+                fi
+              done
+              row="${row} ${unit} |"
+              echo "$row"
+            done
+          } > summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      # 挂回源提交：workflow_run 触发的 run 不会自动出现在源提交的 checks 弹窗，
+      # 用 Checks API 显式创建（name 即弹窗条目名，Details 直达本 run）
+      - name: Publish check to source commit
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const sha = context.payload.workflow_run?.head_sha || context.sha;
+            const result = '${{ needs.jmh.result }}';
+            const conclusion = ['success', 'failure', 'cancelled', 'skipped'].includes(result) ? result : 'failure';
+            const summary = fs.existsSync('summary.md') ? fs.readFileSync('summary.md', 'utf8') : '';
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Benchmark (JDK 8-25)',
+              head_sha: sha,
+              status: 'completed',
+              conclusion: conclusion,
+              details_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              output: { title: 'JMH 基准对比', summary: summary || '详见 Actions 运行页' }
+            });

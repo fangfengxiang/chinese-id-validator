@@ -1,11 +1,12 @@
 # Chinese ID Validator
 
-![Java](https://img.shields.io/badge/Java-11%2B-orange.svg)
-![Maven](https://img.shields.io/badge/Maven-3.6%2B-red.svg)
+![Java](https://img.shields.io/badge/Java-8%2B-orange.svg)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.fangfengxiang/chinese-id-validator)](https://central.sonatype.com/artifact/io.github.fangfengxiang/chinese-id-validator)
-![JUnit 5](https://img.shields.io/badge/JUnit-5-brightgreen.svg)
-![CI](https://github.com/fangfengxiang/chinese-id-validator/actions/workflows/ci.yml/badge.svg)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![CI](https://github.com/fangfengxiang/chinese-id-validator/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/fangfengxiang/chinese-id-validator/graph/badge.svg)](https://codecov.io/gh/fangfengxiang/chinese-id-validator)
+![Maven](https://img.shields.io/badge/Maven-3.6%2B-red.svg)
+![JUnit 5](https://img.shields.io/badge/JUnit-5-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 中国身份证号码验证器 — 支持 **15/18 位大陆居民身份证**、**港澳台居民居住证** 号码的验证、信息解析、升级与生成。仅校验号码本身（身份证一要素），不涉及姓名、人脸等实名比对。
@@ -70,7 +71,7 @@ repositories {
 }
 ```
 
-要求 JDK 11+。
+要求 JDK 8+。
 
 ## 快速开始
 

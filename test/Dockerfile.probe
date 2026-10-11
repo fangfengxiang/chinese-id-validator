@@ -1,5 +1,5 @@
 # 多阶段构建：编译主项目 + 探针 → 精简 JRE 运行
-FROM maven:3.9-eclipse-temurin-11 AS builder
+FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 
 # 预热依赖缓存（即使 src 还没复制，pom 解析也会下载依赖）
@@ -12,11 +12,12 @@ RUN mvn -q -B compile
 
 # 编译探针（仅依赖主项目 target/classes，无外部依赖）
 COPY test/MemoryProbe.java ./test/MemoryProbe.java
+# --release 8：探针运行镜像是 8-jre，字节码必须保持 Java 8（顺带验证主库字节码兼容性）
 RUN mkdir -p /app/test/out \
-    && javac -cp /app/target/classes -d /app/test/out /app/test/MemoryProbe.java
+    && javac --release 8 -cp /app/target/classes -d /app/test/out /app/test/MemoryProbe.java
 
-# 运行镜像：仅 JRE + classes + 探针
-FROM eclipse-temurin:11-jre
+# 运行镜像：仅 JRE + classes + 探针（8-jre = 最低支持版本，真实验证 Java 8 运行时兼容性）
+FROM eclipse-temurin:8-jre
 WORKDIR /app
 COPY --from=builder /app/target/classes /app/target/classes
 COPY --from=builder /app/test/out /app/test/out

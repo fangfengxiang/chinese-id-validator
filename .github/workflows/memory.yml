@@ -1,0 +1,146 @@
+name: Memory
+
+# 内存测量独立 workflow（从 ci.yml 拆出）：
+#   - CI 全绿后自动触发（workflow_run）+ 手动触发（workflow_dispatch）
+#   - probe 矩阵：信息观测，各 JDK 数据加载内存画像，永不 fail 门禁
+#   - 预留 gate 位：未来版本积累后加"vs 最新 release 包"对比 + 超阈值人工审批（environment）
+# 与 ci.yml 的语义分工：ci.yml 是"全绿才能合"的正确性门禁，这里是"观测/裁决内存回归"
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 内存探针矩阵：分别在 JDK 8/11/17/21/25 上测量数据加载内存占用。
+  # 不同 JVM 的对象模型不同（JDK 9+ compact strings、JDK 25 compact object headers、GC 默认值演进），
+  # 内存占用有真实差异，分版本测量给使用者完整的兼容画像。
+  # 探针零依赖，直接 javac 编译 + cp resources，不走 Maven（省掉 Maven 启动与依赖解析，每腿 ~10s 跑完）。
+  # 测量的是 JVM 自报堆内存（MemoryMXBean），非 RSS/墙钟——同 JDK 下结果确定，信噪比远高于 CI 环境噪声。
+  probe:
+    name: Memory probe (JDK ${{ matrix.java }})
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['8', '11', '17', '21', '25']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Compile main sources
+        run: |
+          mkdir -p test/probe-classes
+          find src/main/java -name '*.java' > test/probe-sources.txt
+          javac -encoding UTF-8 -d test/probe-classes @test/probe-sources.txt
+          cp -r src/main/resources/. test/probe-classes/
+
+      - name: Compile memory probe
+        run: |
+          mkdir -p test/out
+          javac -encoding UTF-8 -cp test/probe-classes -d test/out test/MemoryProbe.java
+
+      - name: Run memory probe
+        run: |
+          java -Xmx128m -cp test/probe-classes:test/out MemoryProbe all | tee probe-output.txt
+
+      # 抓机器可读行供 report job 汇总成表；探针失败时留空文件，report 中标 ❌
+      - name: Collect probe result
+        if: always()
+        run: grep '^PROBE_RESULT_BYTES|' probe-output.txt > "probe-result-jdk${{ matrix.java }}.txt" || true
+
+      - name: Upload probe result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-result-jdk-${{ matrix.java }}
+          path: probe-result-jdk${{ matrix.java }}.txt
+          retention-days: 1
+
+      # 原始输出留存（含探针打印的完整明细），供排查异常数字
+      - name: Upload probe raw output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-output-jdk-${{ matrix.java }}
+          path: probe-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 汇总：把 probe 矩阵的散点 artifact 聚合成 Markdown 表格（workflow Summary 页）。
+  # if: always()：任何腿失败也出表，缺失数据标 ❌。
+  report:
+    name: Memory report
+    needs: [probe]
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    # checks: write —— 把汇总结果作为 check run 挂回源提交（workflow_run 触发的 run 不自动挂）
+    permissions:
+      checks: write
+    steps:
+      # continue-on-error：矩阵整体异常时零匹配会抛错，
+      # 放行后由下方脚本的"缺数据标 ❌"降级分支兜底
+      - name: Download probe results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: probe-result-jdk-*
+          merge-multiple: true
+
+      - name: Build summary table
+        run: |
+          mb() { local bytes_per_mib=1048576; awk -v b="$1" -v d="$bytes_per_mib" 'BEGIN{printf "%.2f", b/d}'; }
+          {
+            echo "## 数据内存占用（-Xmx128m，单位 MB）"
+            echo ""
+            echo "| JDK | JVM 基线 | .properties 增量 | .bin 增量 | 总增量 |"
+            echo "|---|---|---|---|---|"
+            for v in 8 11 17 21 25; do
+              f="probe-result-jdk${v}.txt"
+              if [ -s "$f" ]; then
+                baseline=$(grep -oE 'baseline=-?[0-9]+' "$f" | cut -d= -f2)
+                props=$(grep -oE 'propsDelta=-?[0-9]+' "$f" | cut -d= -f2)
+                bin=$(grep -oE 'binDelta=-?[0-9]+' "$f" | cut -d= -f2)
+                total=$(grep -oE 'totalDelta=-?[0-9]+' "$f" | cut -d= -f2)
+                echo "| ${v} | $(mb "$baseline") | $(mb "$props") | $(mb "$bin") | $(mb "$total") |"
+              else
+                echo "| ${v} | ❌ | — | — | — |"
+              fi
+            done
+          } > summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      # 挂回源提交：workflow_run 触发的 run 不会自动出现在源提交的 checks 弹窗，
+      # 用 Checks API 显式创建（name 即弹窗条目名，Details 直达本 run）
+      - name: Publish check to source commit
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const sha = context.payload.workflow_run?.head_sha || context.sha;
+            const result = '${{ needs.probe.result }}';
+            const conclusion = ['success', 'failure', 'cancelled', 'skipped'].includes(result) ? result : 'failure';
+            const summary = fs.existsSync('summary.md') ? fs.readFileSync('summary.md', 'utf8') : '';
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Memory (JDK 8-25)',
+              head_sha: sha,
+              status: 'completed',
+              conclusion: conclusion,
+              details_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              output: { title: '内存画像', summary: summary || '详见 Actions 运行页' }
+            });
