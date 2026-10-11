@@ -135,11 +135,12 @@ class CustomTimelineTest {
     // ==================== 默认模式 + 清除测试 ====================
 
     @Test
-    @DisplayName("默认模式为 MERGE（不 override getMergeMode）")
-    void defaultModeShouldBeMerge() {
-        // 不 override getMergeMode()，默认 MERGE
+    @DisplayName("默认模式为 FALLBACK（不 override getMergeMode）")
+    void defaultModeShouldBeFallback() {
+        // 不 override getMergeMode()，默认 FALLBACK
+        // 内置 110101 有数据，FALLBACK 下不查自定义，应返回内置
         CustomDataSource source = new TestDataSource(
-                null, // null = 不 override，用默认
+                null, // null = 不 override，用默认 FALLBACK
                 Map.of(110101, "自定义东城区"),
                 Map.of(110101, List.of(new TimelineEntry("自定义东城区", "1980", "2020")))
         );
@@ -148,7 +149,8 @@ class CustomTimelineTest {
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
 
-        assertTrue(info.getAddress().contains("自定义"), "默认 MERGE 模式应使用自定义数据");
+        assertTrue(info.getAddress().contains("东城区"), "默认 FALLBACK 模式应使用内置数据");
+        assertFalse(info.getAddress().contains("自定义"), "默认 FALLBACK 模式不应使用自定义数据");
     }
 
     @Test
@@ -185,7 +187,7 @@ class CustomTimelineTest {
     /**
      * 测试用 CustomDataSource 实现。
      *
-     * @param mode null 表示不 override（用默认 MERGE）
+     * @param mode null 表示不 override（用默认 FALLBACK）
      */
     private static final class TestDataSource implements CustomDataSource {
 

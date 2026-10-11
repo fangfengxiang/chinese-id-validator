@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 集成测试：验证 id-validator 公共 API 的端到端行为。
+ * 集成测试：验证 chinese-id-validator 公共 API 的端到端行为。
  *
  * <p>由 maven-failsafe-plugin 在 integration-test 阶段执行（{@code mvn verify}）。
  * 命名约定 {@code *IT.java} 区别于单元测试 {@code *Test.java}（surefire）。
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>升级 15 位身份证号为 18 位 → upgradeId 正确升级
  * </ol>
  */
-@DisplayName("集成测试：id-validator 公共 API 端到端验证")
+@DisplayName("集成测试：chinese-id-validator 公共 API 端到端验证")
 class IdValidationIT {
 
     /** 北京市东城区合法 18 位身份证号（校验码 = 6） */

@@ -1,0 +1,91 @@
+name: Release
+
+# 打 v* 开头的 tag 自动触发；也支持手动触发用于调试
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup JDK 11
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Verify (unit + integration tests)
+        run: mvn -B clean verify
+
+      - name: Check pom version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "pom version: $POM_VERSION"
+          echo "tag version:  $TAG_VERSION"
+          if [ "$POM_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::pom version ($POM_VERSION) != tag ($TAG_VERSION)。先把 pom.xml 的 <version> 改成 $TAG_VERSION 再打 tag。"
+            exit 1
+          fi
+
+  deploy:
+    name: Publish to Maven Central
+    needs: test
+    runs-on: ubuntu-24.04
+    # 关键：在 release environment 配 required reviewers 后，本 job 会暂停等审批
+    environment: release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup JDK 11
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Import GPG key
+        run: echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Configure Maven settings
+        # 单引号 heredoc 防止 shell 展开 ${env.X}；Maven 运行时再解析环境变量
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'SETTINGS'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${env.CENTRAL_USERNAME}</username>
+                <password>${env.CENTRAL_TOKEN}</password>
+              </server>
+              <server>
+                <id>gpg-passphrase</id>
+                <passphrase>${env.GPG_PASSPHRASE}</passphrase>
+              </server>
+            </servers>
+          </settings>
+          SETTINGS
+
+      - name: Deploy to Maven Central
+        run: mvn -B clean deploy -Prelease "-Dgpg.keyname=$GPG_KEYNAME"
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEYNAME: ${{ secrets.GPG_KEY_ID }}

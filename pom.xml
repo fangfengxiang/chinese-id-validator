@@ -5,12 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.fangfengxiang</groupId>
-    <artifactId>id-validator</artifactId>
+    <artifactId>chinese-id-validator</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
     <name>Chinese ID Validator</name>
-    <description>中国身份证号码验证器 — 支持15/18位大陆身份证、港澳台居民居住证的验证、信息解析、升级与生成</description>
+    <description>Java library for Chinese ID card validation, parsing, generation and upgrade. Supports 15/18-digit mainland IDs and HK/Macau/Taiwan resident permits.</description>
     <url>https://github.com/fangfengxiang/chinese-id-validator</url>
 
     <licenses>
@@ -163,6 +163,10 @@
                                 <configuration>
                                     <keyname>${gpg.keyname}</keyname>
                                     <passphraseServerId>gpg-passphrase</passphraseServerId>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
                                 </configuration>
                             </execution>
                         </executions>

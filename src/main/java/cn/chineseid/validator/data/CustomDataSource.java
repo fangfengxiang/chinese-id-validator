@@ -13,8 +13,8 @@ import java.util.List;
  *
  * <h3>合并策略</h3>
  * <ul>
- *   <li>{@link MergeMode#FALLBACK} — 内置有数据则不调用本接口，仅填充缺失
- *   <li>{@link MergeMode#MERGE}（默认）— 总是调用本接口，与内置合并，自定义条目优先匹配
+ *   <li>{@link MergeMode#FALLBACK}（默认）— 内置有数据则不调用本接口，仅填充缺失
+ *   <li>{@link MergeMode#MERGE} — 总是调用本接口，与内置合并，自定义条目优先匹配
  * </ul>
  *
  * <h3>空值约定</h3>
@@ -26,14 +26,14 @@ import java.util.List;
 public interface CustomDataSource {
 
     /**
-     * 合并策略，默认 {@link MergeMode#MERGE}。
+     * 合并策略，默认 {@link MergeMode#FALLBACK}。
      *
-     * <p>实现类可 override 此方法以切换策略。例如仅补缺则返回 {@link MergeMode#FALLBACK}。
+     * <p>实现类可 override 此方法以切换策略。例如需自定义优先覆盖内置则返回 {@link MergeMode#MERGE}。
      *
      * @return 合并策略
      */
     default MergeMode getMergeMode() {
-        return MergeMode.MERGE;
+        return MergeMode.FALLBACK;
     }
 
     /**

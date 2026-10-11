@@ -1,0 +1,29 @@
+# Chinese ID Validator
+
+> Java library for Chinese ID card (身份证) validation, parsing, generation and upgrade. Supports 15/18-digit mainland resident IDs and HK/Macau/Taiwan resident permits. Zero runtime dependencies, data embedded in JAR.
+
+## Quick Start
+
+- [Maven/Gradle coordinates](README.md#安装): `io.github.fangfengxiang:chinese-id-validator:0.1.0`
+- [Validation API](README.md#验证身份证号合法性): `IdValidator.isValid(id, strict)` — strict/loose/basic modes
+- [Get ID info](README.md#获取身份证号信息): `IdValidator.getInfo(id, strict)` — address, birthday, sex, constellation, zodiac
+- [Generate fake IDs](README.md#生成假身份证号): `IdValidator.fakeRequireId(builder)` — Builder pattern with address/birthday/sex constraints
+- [Upgrade 15→18 digit](README.md#升级-15-位身份证号): `IdValidator.upgradeId(id)`
+- [Custom data source](README.md#注入自定义数据源): `CustomDataSource` interface with FALLBACK/MERGE strategies
+
+## API Reference
+
+- [Full API table](README.md#api-方法总结): 11 static methods on `IdValidator` facade
+- [Data models](README.md#获取身份证号信息): `IdInfo`, `BasicIdInfo`, `Sex`, `IdType`, `TimelineEntry`, `ConstellationData`
+
+## Architecture
+
+- [Project structure](README.md#项目结构): facade + core/data/generator/model/util layers
+- [Data maintenance](README.md#数据维护): JSON source → .properties/.bin, Makefile targets
+- [Agent guide](AGENTS.md): build commands, code style, constraints for AI coding agents
+
+## Optional
+
+- [Test strategy](README.md#测试): surefire (unit) + failsafe (integration), zero `.m2` pollution
+- [Build instructions](README.md#构建): mvn verify, mvn package, Docker
+- [Disclaimer & usage restrictions](README.md#免责声明): legal context

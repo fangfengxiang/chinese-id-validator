@@ -2,6 +2,7 @@
 
 ![Java](https://img.shields.io/badge/Java-11%2B-orange.svg)
 ![Maven](https://img.shields.io/badge/Maven-3.6%2B-red.svg)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.fangfengxiang/chinese-id-validator)](https://central.sonatype.com/artifact/io.github.fangfengxiang/chinese-id-validator)
 ![JUnit 5](https://img.shields.io/badge/JUnit-5-brightgreen.svg)
 ![CI](https://github.com/fangfengxiang/chinese-id-validator/actions/workflows/ci.yml/badge.svg)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
@@ -24,12 +25,12 @@
 
 ## 安装
 
-**方式一：Maven 中央仓库**（发布后直接引用）
+**方式一：Maven 中央仓库**
 
 ```xml
 <dependency>
     <groupId>io.github.fangfengxiang</groupId>
-    <artifactId>id-validator</artifactId>
+    <artifactId>chinese-id-validator</artifactId>
     <version>0.1.0</version>
 </dependency>
 ```
@@ -38,7 +39,7 @@
 
 ```kotlin
 dependencies {
-    implementation("io.github.fangfengxiang:id-validator:0.1.0")
+    implementation("io.github.fangfengxiang:chinese-id-validator:0.1.0")
 }
 ```
 
@@ -46,16 +47,16 @@ Groovy DSL（`build.gradle`）等价：
 
 ```groovy
 dependencies {
-    implementation 'io.github.fangfengxiang:id-validator:0.1.0'
+    implementation 'io.github.fangfengxiang:chinese-id-validator:0.1.0'
 }
 ```
 
-> 发布到 Maven Central 后，Maven 与 Gradle 用同一坐标消费，无需额外配置。
+> Maven 与 Gradle 用同一坐标消费，无需额外配置。
 
-**方式二：本地安装**（发布前或需自行编译时）
+**方式二：本地安装**（需自行编译时）
 
 ```sh
-git clone <repo-url> chinese-id-validator
+git clone https://github.com/fangfengxiang/chinese-id-validator.git chinese-id-validator
 cd chinese-id-validator
 mvn install
 ```
@@ -71,154 +72,57 @@ repositories {
 
 要求 JDK 11+。
 
-## 使用示例
+## 快速开始
 
 所有 API 通过门面类 `IdValidator` 静态调用。
 
-> `440308199901101512` 和 `610104620927690` 示例大陆居民身份证均为随机生成的假数据，如撞车，请联系删除。
-> `810000199408230021` 和 `830000199201300022` 示例港澳台居民居住证为北京市公安局公布的居住证样式号码。
+> 示例号码 `440308199901101512`、`610104620927690` 为随机生成的假数据；`810000199408230021`、`830000199201300022` 为官方公布的居住证样式号码。
 
-### 验证身份证号合法性
+### 验证
 
 ```java
-import cn.chineseid.validator.IdValidator;
-
-// 大陆居民身份证
-IdValidator.isValid("440308199901101512", true);  // 严格：18 位，校验地址码是否存在 → true
-IdValidator.isValid("610104620927690", true);     // 严格：15 位 → true
-
-// 港澳台居民居住证（8 开头地址码）
-IdValidator.isValid("810000199408230021", true);  // 香港特别行政区 → true
-IdValidator.isValid("830000199201300022", true);  // 台湾省 → true
-
-// 三种验证模式
-IdValidator.isValid("440308199901101512", true);   // 严格：校验地址码是否存在
-IdValidator.isLooseValid("440308199901101512");     // 宽松：不校验地址码
-IdValidator.isValidBasic("440308199901101512");     // 基础：仅校验顺序码/生日码/校验码
+IdValidator.isValid("440308199901101512", true);  // 严格：校验地址码是否存在
+IdValidator.isLooseValid("440308199901101512");    // 宽松：不校验地址码
+IdValidator.isValidBasic("440308199901101512");    // 基础：仅校验顺序码/生日码/校验码
 ```
 
-### 获取身份证号信息
-
-当身份证号合法时，返回 `IdInfo` 对象（地址、出生日期、星座、生肖、性别、校验位等），不合法抛出 `IllegalArgumentException`：
+### 解析
 
 ```java
-import cn.chineseid.validator.IdValidator;
-import cn.chineseid.validator.model.IdInfo;
-
 IdInfo info = IdValidator.getInfo("440308199901101512", true);
-
-info.getAddressCode();    // 440308                        — 地址码
-info.getAbandoned();      // 0                             — 是否废弃（0=使用中, 1=已废弃）
-info.getAddress();        // "广东省深圳市盐田区"            — 地址全称
-info.getAddressTree();    // ["广东省", "深圳市", "盐田区"]  — 省市区三级列表
-info.getBirthday();       // 1999-01-10                    — 出生日期（LocalDate）
-info.getConstellation();  // "摩羯座"                       — 星座
-info.getChineseZodiac();  // "卯兔"                         — 生肖
-info.getSex();            // Sex.MALE                      — 性别
-info.getLength();        // IdType.EIGHTEEN               — 号码类型（15 位或 18 位）
-info.getCheckBit();       // "2"                           — 校验码
-```
-
-港澳台居民居住证只返回省级地址信息：
-
-```java
-IdInfo hkInfo = IdValidator.getInfo("810000199408230021", true);
-hkInfo.getAddress();      // "香港特别行政区"
-hkInfo.getAddressTree();  // ["香港特别行政区", "", ""]
-
-IdInfo twInfo = IdValidator.getInfo("830000199201300022", true);
-twInfo.getAddress();      // "台湾省"
-twInfo.getAddressTree();  // ["台湾省", "", ""]
-```
-
-### 获取基础信息（不含地址）
-
-`getBasicInfo` 跳过地址码校验，仅返回生日、星座、生肖、性别等基础信息，适用于不关心地址的场景：
-
-```java
-import cn.chineseid.validator.model.BasicIdInfo;
-
-BasicIdInfo info = IdValidator.getBasicInfo("440308199901101512");
+info.getAddress();        // "广东省深圳市盐田区"
 info.getBirthday();       // 1999-01-10
 info.getConstellation();  // "摩羯座"
 info.getChineseZodiac();  // "卯兔"
 info.getSex();            // Sex.MALE
-info.getLength();        // IdType.EIGHTEEN
-info.getCheckBit();       // "2"
 ```
 
-### 生成假身份证号
+不关心地址时用 `getBasicInfo`，跳过地址码校验。港澳台居住证（8 开头地址码）只返回省级地址。
 
-`fakeId` 生成可通过校验的假身份证号，支持随机生成或按条件（地区、生日、性别、位数）生成：
+### 生成假号
 
 ```java
-import cn.chineseid.validator.IdValidator;
-import cn.chineseid.validator.generator.FakeIdBuilder;
-import cn.chineseid.validator.model.Sex;
+IdValidator.fakeId();  // 随机 18 位
 
-// 随机 18 位
-IdValidator.fakeId();
-
-// 按条件生成（Builder 模式）
 IdValidator.fakeRequireId(new FakeIdBuilder()
         .eighteen()
         .address("上海市")
         .birthday("2000")
-        .sex(Sex.MALE));                          // 2000 年上海市男性 18 位
-
-IdValidator.fakeRequireId(new FakeIdBuilder()
-        .fifteen()
-        .address("南山区")
-        .birthday("1999")
-        .sex(Sex.FEMALE));                        // 1999 年深圳市南山区女性 15 位
-
-IdValidator.fakeRequireId(new FakeIdBuilder()
-        .eighteen()
-        .address("江苏省")
-        .birthday("200001")
-        .sex(Sex.MALE));                           // 2000 年 1 月江苏省男性 18 位
-
-IdValidator.fakeRequireId(new FakeIdBuilder()
-        .eighteen()
-        .address("台湾省")
-        .birthday("20131010")
-        .sex(Sex.FEMALE));                         // 2013 年 10 月 10 日台湾省女性居住证
-
-IdValidator.fakeRequireId(new FakeIdBuilder()
-        .eighteen()
-        .address("香港特别行政区")
-        .birthday("19970701")
-        .sex(Sex.FEMALE));                         // 1997 年 7 月 1 日香港特别行政区女性居住证
+        .sex(Sex.MALE));  // 2000 年上海市男性
 ```
 
-**FakeIdBuilder 参数说明：**
-
-| 参数 | 方法 | 说明 | 默认值 |
-|---|---|---|---|
-| 位数 | `.eighteen()` / `.fifteen()` | 生成 18 位或 15 位 | 18 位 |
-| 地址 | `.address("江苏省")` | 省/市/区官方全称，如 "北京市"、"深圳市"、"朝阳区" | 全国随机 |
-| 生日 | `.birthday("200001")` | 支持 "2000"、"198801"、"19990101" 三种精度 | 随机 |
-| 性别 | `.sex(Sex.MALE)` | `Sex.MALE`（男）/ `Sex.FEMALE`（女） | FEMALE |
-
-### 升级 15 位身份证号
-
-将 15 位身份证号升级为 18 位（自动补全出生年份前缀 "19" 并计算校验码）：
+### 升级 15 位 → 18 位
 
 ```java
-IdValidator.upgradeId("610104620927690");  // → 18 位身份证号
+IdValidator.upgradeId("610104620927690");
 ```
 
-### 注入自定义数据源
+### 自定义数据源
 
-实现 `CustomDataSource` 接口，在构造函数中初始化数据，通过 `setCustomDataSource` 注入：
+实现 `CustomDataSource` 接口，通过 `setCustomDataSource` 注入：
 
 ```java
-// 1. 实现接口（构造函数即初始化，无需 init 方法）
 public class MyDataSource implements CustomDataSource {
-    public MyDataSource() {
-        // 初始化数据加载
-    }
-
     @Override
     public List<TimelineEntry> getTimeline(int code) {
         // 返回自定义时间线，空列表 = 无自定义数据
@@ -229,66 +133,52 @@ public class MyDataSource implements CustomDataSource {
         // 返回自定义地址名，null = 无自定义数据
     }
 
-    // 可选：override getMergeMode() 切换策略，默认 MERGE
+    // 可选：默认 FALLBACK，可切换 MERGE
     @Override
     public MergeMode getMergeMode() {
-        return MergeMode.FALLBACK; // 内置有数据则不查自定义
+        return MergeMode.MERGE;
     }
 }
 
-// 2. 注入
 IdValidator.setCustomDataSource(new MyDataSource());
-
-// 3. 清除（恢复纯内置数据）
-IdValidator.clearCustomDataSource();
+IdValidator.clearCustomDataSource();  // 清除，恢复纯内置数据
 ```
 
-**合并策略：**
+| 策略 | 行为 |
+|---|---|
+| `FALLBACK`（默认） | 内置有数据则不查自定义源，仅填充缺失 |
+| `MERGE` | 总是查自定义源，与内置合并，自定义优先 |
 
-| 策略 | 行为 | 适用场景 |
-|---|---|---|
-| `MERGE`（默认） | 总是查自定义源，与内置合并，自定义优先 | 补充/覆盖内置数据 |
-| `FALLBACK` | 内置有数据则不查自定义源，仅填充缺失 | 仅补缺，不动已有数据 |
-
-## API 方法总结
-
-| 方法 | 参数 | 返回值 | 说明 |
-|---|---|---|---|
-| `isValid(id, strict)` | 身份证号, 是否严格 | `boolean` | 验证合法性 |
-| `isLooseValid(id)` | 身份证号 | `boolean` | 宽松验证（不校验地址码） |
-| `isStrictValid(id)` | 身份证号 | `boolean` | 严格验证（校验地址码） |
-| `isValidBasic(id)` | 身份证号 | `boolean` | 基础验证（仅校验顺序码/生日码/校验码） |
-| `getInfo(id, strict)` | 身份证号, 是否严格 | `IdInfo` | 获取完整信息 |
-| `getBasicInfo(id)` | 身份证号 | `BasicIdInfo` | 获取基础信息（不含地址） |
-| `fakeId()` | 无 | `String` | 生成随机 18 位假号 |
-| `fakeRequireId(builder)` | `FakeIdBuilder` | `String` | 按条件生成假号 |
-| `upgradeId(id)` | 15 位身份证号 | `String` | 升级为 18 位 |
-| `setCustomDataSource(ds)` | `CustomDataSource` | `void` | 注入自定义数据源 |
-| `clearCustomDataSource()` | 无 | `void` | 清除自定义数据源 |
+更多：[API 参考](docs/api.md)
 
 ## 数据维护
 
-运行时数据文件位于 `src/main/resources/data/`：
+运行时依赖 4 类数据：
 
-| 原始 JSON（可编辑） | 运行时产物 | 说明 |
+| 数据依赖 | 源数据文件 | 说明 | 加载方式 |
+|---|---|---|---|
+| `address_code.properties` | `address_code.json` | 地址码→名称映射 | `DataProvider` 构造时加载进 `HashMap` |
+| `address_code_timeline.bin` | `address_code_timeline.json` | 地址码历史时间线 | 首次查询时懒加载进 `HashMap` |
+| `CHINESE_ZODIACS` 常量 | `chinese_zodiac.json` | 生肖 | 编译期常量，无 I/O |
+| `CONSTELLATIONS` 常量 | `constellation.json` | 星座 | 编译期常量，无 I/O |
+
+源数据文件（`.json`）用于升级构造运行时数据文件（`.properties` / `.bin`），代码包运行时无依赖——仅依赖打包进 JAR 的 `.properties` / `.bin` 及硬编码常量。修改 JSON 后用 `make data` 重新生成。
+
+更多：[数据维护](docs/data-maintenance.md)
+
+## 运行时说明
+
+数据加载后 Java 堆内存常驻增量（Docker / Temurin JRE 11 / `-Xmx128m` 实测）：
+
+| 数据 | 条目数 | 堆内存增量 |
 |---|---|---|
-| `address_code.json` | `address_code.properties` | 地址码 → 名称映射 |
-| `address_code_timeline.json` | `address_code_timeline.bin` | 地址码历史时间线（二进制序列化） |
-| `chinese_zodiac.json` | — | 已硬编码为 `DataProvider` 常量 |
-| `constellation.json` | — | 已硬编码为 `DataProvider` 常量 |
+| `address_code.properties` | 3,209 条 | **0.41 MB** |
+| `address_code_timeline.bin` | 3,501 条时间线 | **2.04 MB** |
+| **合计业务数据增量** | — | **2.45 MB** |
 
-修改 JSON 后，在项目根目录用 Makefile 重新生成 `.properties` / `.bin`：
+JVM 总堆占用约 **3.50 MB**（含 JVM 基线 1.04 MB + 业务数据 2.45 MB）。`.bin` 占用约为 `.properties` 的 5 倍，因为时间线是 `HashMap<Integer, List<TimelineEntry>>`，对象头开销远大于纯键值对。
 
-```sh
-make data              # 重新生成 .properties 和 .bin
-make data-properties   # 仅重新生成 address_code.properties
-make data-timeline     # 仅重新生成 address_code_timeline.bin
-make help              # 查看所有 target
-```
-
-生成器源码：`src/test/java/cn/chineseid/validator/tools/DataFileGenerator.java`（开发期工具，不进运行时 JAR）。`.bin` 采用 `DataOutputStream` 序列化，读写格式与 `DataProvider.loadTimelineMap` 严格对称，按地址码升序写入以保证可复现。
-
-> `chinese_zodiac.json` / `constellation.json` 修改后需**手动同步** `DataProvider.java` 中的 `CHINESE_ZODIACS` / `CONSTELLATIONS` 常量，脚本无法自动生成这两项。
+更多：[数据内存占用](docs/memory-usage.md)
 
 ## 测试
 
@@ -314,9 +204,13 @@ docker build -t chinese-id-validator . # 用根目录 Dockerfile 构建（内含
 
 ```
 chinese-id-validator/
-├── pom.xml                          # 主项目（io.github.fangfengxiang:id-validator）
+├── pom.xml                          # 主项目（io.github.fangfengxiang:chinese-id-validator）
 ├── Makefile                         # 数据维护（make data ...）
 ├── Dockerfile                       # 运行镜像
+├── LICENSE                          # MIT 许可证
+├── .github/workflows/               # CI / Release（GitHub Actions）
+├── docs/                            # 文档（API 参考、数据维护、内存占用）
+├── test/                            # 内存测量脚本（MemoryProbe + run-*.sh + Dockerfile.probe）
 ├── src/main/java/cn/chineseid/validator/
 │   ├── IdValidator.java             # 对外门面 API
 │   ├── core/                        # 解析与校验
@@ -348,13 +242,18 @@ chinese-id-validator/
    - 非法采集、存储、买卖、传播他人身份证号码等个人信息
    - 伪造、变造身份证件，或冒用他人身份
    - 实施诈骗、洗钱、侵犯公民个人信息等违法犯罪活动
-   - 任何违反《中华人民共和国个人信息保护法》《中华人民共和国居民身份证法》《中华人民共和国网络安全法》等法律法规的行为
 
 3. **隐私保护**：身份证号码属于**个人敏感信息**。在处理真实身份证号码时，应严格遵守最小必要原则，采取加密、脱敏等技术措施，并确保已获得信息主体的合法授权。
 
 4. **示例数据**：本项目中出现的身份证号码均为随机生成的假数据或官方公布的样式号码，不涉及任何真实个人信息。如偶然与真实号码重复，请联系删除。
 
 5. **法律责任**：使用者应自行承担因不当使用本项目而产生的一切法律责任。本项目作者及贡献者不对任何因使用或滥用本项目而造成的直接或间接损失承担责任。
+
+## 使用限制
+
+本软件处理身份证号码等个人敏感信息，使用者有责任确保其使用方式符合所在国家或地区的法律法规，包括但不限于数据保护、隐私及身份信息相关立法，并自行取得必要的授权和许可。
+
+本软件不得用于违反使用者所在国家或地区法律法规的活动，包括但不限于侵犯公民个人信息、破坏网络安全、危害国家安全等违法行为。使用者违反本条款即丧失使用授权。
 
 ## License
 
