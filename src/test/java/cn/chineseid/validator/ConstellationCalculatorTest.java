@@ -61,4 +61,22 @@ class ConstellationCalculatorTest {
     void shouldReturnSagittarius() {
         assertEquals("射手座", ConstellationCalculator.calculate("19901123"));
     }
+
+    @Test
+    @DisplayName("null 输入返回空字符串")
+    void shouldReturnEmptyForNull() {
+        assertEquals("", ConstellationCalculator.calculate(null));
+    }
+
+    @Test
+    @DisplayName("长度不足 8 返回空字符串")
+    void shouldReturnEmptyForShortInput() {
+        assertEquals("", ConstellationCalculator.calculate("1234567"));
+    }
+
+    @Test
+    @DisplayName("月份非数字返回空字符串")
+    void shouldReturnEmptyForNonNumericMonth() {
+        assertEquals("", ConstellationCalculator.calculate("1990ab01"));
+    }
 }

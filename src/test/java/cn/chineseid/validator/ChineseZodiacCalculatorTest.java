@@ -53,4 +53,28 @@ class ChineseZodiacCalculatorTest {
     void shouldReturnWuFor2026() {
         assertEquals("午马", ChineseZodiacCalculator.calculate("20260101"));
     }
+
+    @Test
+    @DisplayName("null 输入返回空字符串")
+    void shouldReturnEmptyForNull() {
+        assertEquals("", ChineseZodiacCalculator.calculate(null));
+    }
+
+    @Test
+    @DisplayName("长度不足 4 返回空字符串")
+    void shouldReturnEmptyForShortInput() {
+        assertEquals("", ChineseZodiacCalculator.calculate("123"));
+    }
+
+    @Test
+    @DisplayName("年份非数字返回空字符串")
+    void shouldReturnEmptyForNonNumericYear() {
+        assertEquals("", ChineseZodiacCalculator.calculate("abcd0101"));
+    }
+
+    @Test
+    @DisplayName("1899 年（基准年前）负数取模修正为亥猪")
+    void shouldReturnHaiForYearBeforeBase() {
+        assertEquals("亥猪", ChineseZodiacCalculator.calculate("18990101"));
+    }
 }
