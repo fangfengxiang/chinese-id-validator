@@ -24,4 +24,6 @@ public final class IdValidatorMessages {
 
     public static final String DATA_SOURCE_NULL_TIMELINE =
             "CustomDataSource.getTimeline returned null for address code (violated non-null contract): ";
+
+    public static final String INVALID_YEAR_RANGE = "Invalid year range (start > end) in timeline entry: ";
 }

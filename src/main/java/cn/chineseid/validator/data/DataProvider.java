@@ -259,8 +259,10 @@ public final class DataProvider {
             return builtIn;
         }
         if (builtIn.isEmpty()) {
-            // 复制并包装为不可变列表，切断外部可变 List 与内部查询流程的关联
-            return Collections.unmodifiableList(new ArrayList<>(custom));
+            // 无内置数据时，自定义数据单独规范化（含 start>end 校验），
+            // 与合并路径保持一致，避免校验只在内置非空时才触发。
+            // 同时包装为不可变列表，切断外部可变 List 与内部查询流程的关联
+            return Collections.unmodifiableList(normalizeBoundaries(custom));
         }
         // MERGE：自定义在前，内置在后。
         // 合并前对各数据源独立规范化年份边界，使每条 entry 携带显式年份，
@@ -278,28 +280,52 @@ public final class DataProvider {
     /**
      * 规范化单数据源时间线的年份边界。
      *
-     * <p>将年份继承逻辑在单数据源范围内闭合：若某条目的 startYear/endYear 为空，
-     * 从同源前一条目继承。规范化后每条 entry 携带显式年份，
-     * {@link cn.chineseid.validator.util.AddressResolver} 的跨条目继承变为 no-op，避免多数据源合并时
-     * 年份边界跨源泄漏。
+     * <p>为每条目填充显式年份边界：startYear 为空时取 {@link TimelineEntry#DEFAULT_START_YEAR}，
+     * endYear 为空时取 {@link TimelineEntry#DEFAULT_END_YEAR}。各条目独立规范化，
+     * <b>不跨条目继承</b>——空 endYear 表示"至今"（无上界），空 startYear 表示"自古"（无下界），
+     * 而非继承前一条目的对应年份。
+     *
+     * <p>此前实现使用累加器跨条目继承空年份字段，导致最后一条目的空 endYear
+     * 继承前一条目的 endYear，产生 start > end 的非法区间（如东郊区 end=1991 →
+     * 东丽区 start=1992 继承 end=1991），使当前名称永远无法匹配。独立规范化修复此问题。
      *
      * @param timeline 单数据源的时间线（非空）
      * @return 规范化后的新列表（每条 entry 有显式 startYear/endYear）
      */
     private static List<TimelineEntry> normalizeBoundaries(List<TimelineEntry> timeline) {
         List<TimelineEntry> result = new ArrayList<>(timeline.size());
-        String startYear = TimelineEntry.DEFAULT_START_YEAR;
-        String endYear = TimelineEntry.DEFAULT_END_YEAR;
         for (TimelineEntry entry : timeline) {
-            if (!entry.getStartYear().isEmpty()) {
-                startYear = entry.getStartYear();
+            String sy = entry.getStartYear().isEmpty() ? TimelineEntry.DEFAULT_START_YEAR : entry.getStartYear();
+            String ey = entry.getEndYear().isEmpty() ? TimelineEntry.DEFAULT_END_YEAR : entry.getEndYear();
+            // 校验：两个边界均为显式数字年份时，start 不应大于 end。
+            // fail-fast 暴露数据源中的非法区间，避免静默产生永远无法匹配的条目。
+            Integer startYear = tryParseYear(sy);
+            Integer endYear = tryParseYear(ey);
+            if (startYear != null && endYear != null && startYear > endYear) {
+                throw new IllegalArgumentException(IdValidatorMessages.INVALID_YEAR_RANGE + "start=" + sy + " > end="
+                        + ey + " for address: " + entry.getAddress());
             }
-            if (!entry.getEndYear().isEmpty()) {
-                endYear = entry.getEndYear();
-            }
-            result.add(new TimelineEntry(entry.getAddress(), startYear, endYear));
+            result.add(new TimelineEntry(entry.getAddress(), sy, ey));
         }
         return result;
+    }
+
+    /**
+     * 安全解析年份字符串。
+     *
+     * <p>用于 {@link #normalizeBoundaries} 的 start>end 校验：非数字年份返回 null，
+     * 不参与校验（由 {@code AddressResolver.parseYearSafe} 容错回退默认值）。
+     * 仅当两个边界都是有效数字时才比较大小关系。
+     */
+    private static Integer tryParseYear(String yearStr) {
+        if (yearStr == null || yearStr.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(yearStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

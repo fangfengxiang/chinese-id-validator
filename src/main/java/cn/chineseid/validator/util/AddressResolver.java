@@ -14,7 +14,7 @@ import java.util.List;
  * 2. 港澳台居民居住证（8 开头）只查省级信息
  * 3. 时间线匹配：根据出生年份在时间线条目中查找对应地址
  * 4. 历史遗留地址码处理：后缀 01/02/11/20 → 市辖区/城区/郊区/市区
- * 5. 非严格模式：年份不匹配时取第一条时间线条目
+ * 5. 非严格模式：年份不匹配时取距查询年份最近的时间线条目
  *
  * <p><b>配置一致性</b>：{@link #getAddressInfo(int, String, boolean)} 的省/市/区多次查询
  * 各自调用 {@link DataProvider#getTimeline(int)}，每次读取当前自定义配置，
@@ -86,30 +86,34 @@ public final class AddressResolver {
         String address = "";
         int year = parseYear(birthdayCode);
 
-        String startYear = TimelineEntry.DEFAULT_START_YEAR;
-        String endYear = TimelineEntry.DEFAULT_END_YEAR;
-
         for (TimelineEntry entry : timeline) {
-            // 年份累积继承：当某条目的 startYear/endYear 为空时，
-            // 继承上一条目的值，不重置为默认。这处理时间线数据中
-            // 部分条目只填写单边年份边界的情况。
-            if (!entry.getStartYear().isEmpty()) {
-                startYear = entry.getStartYear();
-            }
-            if (!entry.getEndYear().isEmpty()) {
-                endYear = entry.getEndYear();
-            }
-            int startY = parseYearSafe(startYear, MIN_TIMELINE_YEAR);
-            int endY = parseYearSafe(endYear, MAX_TIMELINE_YEAR);
+            // 各条目独立匹配年份：空 startYear 表示无下界（取 MIN_TIMELINE_YEAR），
+            // 空 endYear 表示无上界（取 MAX_TIMELINE_YEAR），不跨条目继承。
+            int startY = parseYearSafe(entry.getStartYear(), MIN_TIMELINE_YEAR);
+            int endY = parseYearSafe(entry.getEndYear(), MAX_TIMELINE_YEAR);
             if (year >= startY && year <= endY) {
                 address = entry.getAddress();
                 break;
             }
         }
 
-        // 4. 非严格模式回退：取第一条条目
+        // 4. 非严格模式回退：取距查询年份最近的条目（每条都评估，非固定取某条）
         if (address.isEmpty() && !strict && !timeline.isEmpty()) {
-            address = timeline.get(0).getAddress();
+            TimelineEntry nearest = timeline.get(0);
+            int sY0 = parseYearSafe(nearest.getStartYear(), MIN_TIMELINE_YEAR);
+            int eY0 = parseYearSafe(nearest.getEndYear(), MAX_TIMELINE_YEAR);
+            int minDist = (year < sY0) ? (sY0 - year) : (year > eY0) ? (year - eY0) : 0;
+            for (int i = 1; i < timeline.size(); i++) {
+                TimelineEntry entry = timeline.get(i);
+                int sY = parseYearSafe(entry.getStartYear(), MIN_TIMELINE_YEAR);
+                int eY = parseYearSafe(entry.getEndYear(), MAX_TIMELINE_YEAR);
+                int dist = (year < sY) ? (sY - year) : (year > eY) ? (year - eY) : 0;
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = entry;
+                }
+            }
+            address = nearest.getAddress();
         }
 
         return address;
