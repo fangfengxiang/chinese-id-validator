@@ -165,9 +165,10 @@ public class MyDataSource implements CustomDataSource {
 }
 
 // 2. 一次性安装（原子发布，全 JVM 生效）
+//    initialize() 仅安装配置，不触发内置数据预加载
 IdValidator.initialize(new MyDataSource(), MergeMode.MERGE);
 
-// 3. 可选：预加载内置数据（应用启动阶段调用，幂等）
+// 3. 可选：预加载内置数据（与 initialize 职责独立，调用顺序不限，幂等）
 IdValidator.preload();
 ```
 
@@ -187,4 +188,4 @@ IdValidator.preload();
 |---|---|
 | `IllegalArgumentException` | `initialize(source, null)` 或 `initialize(null, mergeMode)` |
 | `IllegalStateException` | 重复调用 `initialize()` |
-| `IdValidatorException` | 自定义数据源查询时抛出 `RuntimeException`，或方法返回 `null` 违反非空契约（`getTimeline`/`getAddressName` 等） |
+| `IdValidatorException` | 自定义数据源查询时抛出 `RuntimeException`，或 `getTimeline` 返回 `null` 违反非空契约（`getAddressName` 返回 `null` 是合法的，表示无自定义数据） |

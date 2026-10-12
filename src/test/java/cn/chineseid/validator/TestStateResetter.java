@@ -8,6 +8,15 @@ import java.lang.reflect.Field;
  *
  * <p>仅供单元/集成测试在 {@code @AfterEach} 中调用，
  * 不属于公开 API。生产代码不应使用此类。
+ *
+ * <h3>设计说明</h3>
+ * <p>生产代码的 {@link DataProvider#initialize} 是一次性初始化（JVM 生命周期内仅允许调用一次）。
+ * 测试需要反复安装不同配置来验证各种场景，因此通过反射绕过该约束。
+ *
+ * <p><b>并行测试风险</b>：反射重置的是全局共享状态，若 JUnit 并行执行测试，
+ * 可能出现一个测试重置状态时另一个测试正在进行校验，导致不确定行为。
+ * 当前测试以串行模式运行（surefire/failsafe 默认 forkCount=1）。
+ * 一次性初始化的真实并发安全保证由 CI 矩阵（JDK 8/11/17/21/25 各为独立 JVM）覆盖。
  */
 public final class TestStateResetter {
 

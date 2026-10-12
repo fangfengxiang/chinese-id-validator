@@ -135,6 +135,11 @@ public final class DataProvider {
      * <p>原子发布：source 和 mergeMode 作为不可变 Configuration 对整体发布。
      * 成功后再次调用抛出 {@link IllegalStateException}。
      *
+     * <p><b>职责边界</b>：本方法仅负责安装自定义数据源配置（source + mergeMode），
+     * 不触发内置时间线数据预加载。如需在业务线程启动前预热内置数据，
+     * 应另行调用 {@link #preloadTimeline()}（或 {@link cn.chineseid.validator.IdValidator#preload()}）。
+     * 两者职责独立，调用顺序不限。
+     *
      * <p><b>生命周期约束</b>：本方法应在应用启动阶段、业务线程开始校验前完成调用。
      * 库不支持业务调用过程中切换配置——单次校验内的多次查询不会获取配置快照，
      * 若校验进行时恰好发生一次性初始化（{@code null → 已安装}），
@@ -257,11 +262,44 @@ public final class DataProvider {
             // 复制并包装为不可变列表，切断外部可变 List 与内部查询流程的关联
             return Collections.unmodifiableList(new ArrayList<>(custom));
         }
-        // MERGE：自定义在前，内置在后
-        List<TimelineEntry> merged = new ArrayList<>(custom.size() + builtIn.size());
-        merged.addAll(custom);
-        merged.addAll(builtIn);
+        // MERGE：自定义在前，内置在后。
+        // 合并前对各数据源独立规范化年份边界，使每条 entry 携带显式年份，
+        // 切断 AddressResolver 年份继承逻辑跨数据源边界泄漏的风险
+        // （否则自定义最后一条的 startYear/endYear 会泄漏到内置第一条的空 startYear/endYear，
+        // 导致内置覆盖范围被错误收窄或偏移）。
+        List<TimelineEntry> normalizedCustom = normalizeBoundaries(custom);
+        List<TimelineEntry> normalizedBuiltIn = normalizeBoundaries(builtIn);
+        List<TimelineEntry> merged = new ArrayList<>(normalizedCustom.size() + normalizedBuiltIn.size());
+        merged.addAll(normalizedCustom);
+        merged.addAll(normalizedBuiltIn);
         return Collections.unmodifiableList(merged);
+    }
+
+    /**
+     * 规范化单数据源时间线的年份边界。
+     *
+     * <p>将年份继承逻辑在单数据源范围内闭合：若某条目的 startYear/endYear 为空，
+     * 从同源前一条目继承。规范化后每条 entry 携带显式年份，
+     * {@link cn.chineseid.validator.util.AddressResolver} 的跨条目继承变为 no-op，避免多数据源合并时
+     * 年份边界跨源泄漏。
+     *
+     * @param timeline 单数据源的时间线（非空）
+     * @return 规范化后的新列表（每条 entry 有显式 startYear/endYear）
+     */
+    private static List<TimelineEntry> normalizeBoundaries(List<TimelineEntry> timeline) {
+        List<TimelineEntry> result = new ArrayList<>(timeline.size());
+        String startYear = TimelineEntry.DEFAULT_START_YEAR;
+        String endYear = TimelineEntry.DEFAULT_END_YEAR;
+        for (TimelineEntry entry : timeline) {
+            if (!entry.getStartYear().isEmpty()) {
+                startYear = entry.getStartYear();
+            }
+            if (!entry.getEndYear().isEmpty()) {
+                endYear = entry.getEndYear();
+            }
+            result.add(new TimelineEntry(entry.getAddress(), startYear, endYear));
+        }
+        return result;
     }
 
     /**

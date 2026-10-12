@@ -122,6 +122,34 @@ class CustomTimelineTest {
         assertTrue(info.getAddress().contains("测试区"), "内置缺失时应使用自定义数据");
     }
 
+    @Test
+    @DisplayName("MERGE 模式：年份边界不跨数据源继承")
+    void mergeShouldNotInheritYearBoundariesAcrossSources() {
+        // 110101 内置时间线: [{address:"东城区", startYear:"", endYear:""}]（空边界=覆盖所有年份）
+        // 自定义时间线: [{address:"自定义东城区", startYear:"1990", endYear:"1995"}]
+        // MERGE 合并后: [Custom(1990-1995), BuiltIn(空边界)]
+        //
+        // 无修复时 AddressResolver 年份继承会跨源泄漏：
+        //   BuiltIn 继承 Custom 的 endYear="1995" → BuiltIn 覆盖范围变为 1990-1995
+        //   查询年份 2000 → 两条都不匹配 → 非严格模式回退第一条（Custom）→ 返回"自定义东城区"（错误）
+        //
+        // 修复后各源独立规范化边界：
+        //   Custom(1990-1995), BuiltIn(0001-9999)
+        //   查询年份 2000 → Custom 不匹配，BuiltIn 匹配 → 返回"东城区"（正确）
+        CustomDataSource source = new TestDataSource(
+                Collections.emptyMap(),
+                Collections.singletonMap(
+                        110101, Collections.singletonList(new TimelineEntry("自定义东城区", "1990", "1995"))));
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        // 年份 2000 在自定义范围(1990-1995)外，应匹配内置"东城区"
+        String id = buildValidId(110101, "20000101");
+        IdInfo info = IdValidator.getInfo(id, false);
+
+        assertTrue(info.getAddress().contains("东城区"), "年份在自定义范围外应匹配内置数据");
+        assertFalse(info.getAddress().contains("自定义"), "不应回退到自定义条目");
+    }
+
     // ==================== 初始化生命周期测试 ====================
 
     @Test

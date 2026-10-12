@@ -11,6 +11,8 @@
 
 中国身份证号码验证器 — 支持 **15/18 位大陆居民身份证**、**港澳台居民居住证** 号码的验证、信息解析、升级与生成。仅校验号码本身（身份证一要素），不涉及姓名、人脸等实名比对。
 
+> [English documentation](README.en.md)
+
 > 纯 Java 实现，零运行时数据源依赖（行政区划数据打包进 JAR），单例懒加载。支持注入自定义数据源
 
 其他语言实现参考：[Go](https://github.com/guanguans/id-validator) · [Python](https://github.com/jxlwqq/id-validator.py) · [Ruby](https://github.com/renyijiu/id_validator) · [JavaScript](https://github.com/mc-zone/IDValidator)
