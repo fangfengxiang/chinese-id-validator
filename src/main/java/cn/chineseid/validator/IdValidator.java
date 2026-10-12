@@ -31,6 +31,10 @@ import java.util.List;
  *   <li>{@link #preload()} 可在应用启动阶段显式预加载内置数据（幂等）
  *   <li>{@link #initialize(CustomDataSource, MergeMode)} 一次性安装自定义数据源及合并策略
  * </ul>
+ *
+ * <p><b>生命周期约束</b>：{@code initialize} 须在业务线程开始校验前完成。
+ * 库不支持业务调用过程中切换配置——单次校验内省/市/区多次查询各自读取当前配置，
+ * 不获取跨调用快照。业务线程开始后请勿再调用 {@code initialize}。
  */
 public final class IdValidator {
 
@@ -246,6 +250,11 @@ public final class IdValidator {
      * <p>原子发布：数据源和合并策略作为不可变配置对整体发布，
      * 保证多线程不会看到半发布状态。成功后再次调用抛出
      * {@link IllegalStateException}，不会静默覆盖已有配置。
+     *
+     * <p><b>生命周期约束</b>：本方法应在应用启动阶段、业务线程开始校验前完成调用。
+     * 库不支持业务调用过程中切换配置——单次校验内的多次查询不会获取配置快照，
+     * 若校验进行时恰好发生一次性初始化（{@code null → 已安装}），
+     * 可能混合内置与自定义两套数据。业务线程开始后请勿再调用本方法。
      *
      * @param source    自定义数据源实现，不允许 null
      * @param mergeMode 合并策略，不允许 null

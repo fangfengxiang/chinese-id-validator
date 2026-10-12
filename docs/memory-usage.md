@@ -8,7 +8,8 @@
 |---|---|---|
 | `address_code.properties` | `DataProvider` 构造时（首次 `getInstance()`） | `HashMap<Integer, String>`（addressCodeMap） |
 | `address_code_timeline.bin` | 懒加载（首次 `getTimeline(code)` 触发） | `HashMap<Integer, List<TimelineEntry>>`（timelineMap） |
-| 星座 / 生肖 | 编译期常量，零 I/O | `String[]` 常量 |
+| 生肖 | 编译期常量，零 I/O | `String[]` 常量 |
+| 星座 | 编译期常量，零 I/O | `List<ConstellationData>` 常量 |
 
 ## 测量结果
 
@@ -23,7 +24,7 @@
 | 条目数 | 3,209 |
 | 文件大小 | 69 KB |
 | 格式 | `地址码=行政区划全称`，UTF-8，按地址码升序 |
-| **Java 常驻内存增量** | **0.56 MB（588,456 bytes）** |
+| **Java 常驻内存增量** | **0.56 MB（588,360 bytes）** |
 
 ### `address_code_timeline.bin`
 
@@ -66,4 +67,4 @@ test/
 
 ### CI 自动测量
 
-每次 push / PR，GitHub Actions 的 `memory-probe` 矩阵在 JDK 8/11/17/21/25 上各编译并运行一遍探针（探针零依赖，直接 `javac` 编译，不走 Maven），随后 `report` job 把 5 个版本的结果聚合成对比表格写入 run summary（在 PR / commit 的 **Checks → Summary** 页面可直接查看，无需本地运行）。详见 `.github/workflows/ci.yml`。
+CI 全绿后自动触发（`workflow_run`）或手动触发（`workflow_dispatch`），GitHub Actions 的 `memory-probe` 矩阵在 JDK 8/11/17/21/25 上各编译并运行一遍探针（探针零依赖，直接 `javac` 编译，不走 Maven），随后 `report` job 把 5 个版本的结果聚合成对比表格写入 run summary。`workflow_run` 触发的运行不挂在源 commit 上，`report` job 通过 Checks API 在 `head_sha` 创建 check run，结果在 commit 的 **Checks** 弹窗可直接查看，无需本地运行。不在 PR CI 中——同一字节码由 `ci.yml` 校验一次即可，内存探针仅作信息参考、不阻断。详见 `.github/workflows/memory.yml`。

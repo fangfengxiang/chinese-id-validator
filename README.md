@@ -140,6 +140,7 @@ IdValidator.initialize(new MyDataSource(), MergeMode.MERGE);
 ```
 
 > `initialize()` 只能调用一次。重复调用抛出 `IllegalStateException`。
+> 须在业务线程开始校验前完成调用——库不支持校验过程中切换配置，单次校验内省/市/区多次查询各自读取当前配置、不获取跨调用快照。
 > 普通使用无需显式初始化——首次调用业务 API 时自动加载内置数据。
 > 如需在应用启动阶段预加载内置数据，可调用 `IdValidator.preload()`（幂等）。
 
@@ -169,15 +170,15 @@ Nacos 等外部配置源集成参考：[example/NacosExample.java](example/Nacos
 
 ## 运行时说明
 
-数据加载后 Java 堆内存常驻增量（Docker / Temurin JRE 11 / `-Xmx128m` 实测）：
+数据加载后 Java 堆内存常驻增量（Docker / Temurin JRE / `-Xmx128m` 实测；JDK 8 为各版本上界，详表见下）：
 
-| 数据 | 条目数 | 堆内存增量 |
-|---|---|---|
-| `address_code.properties` | 3,209 条 | **0.41 MB** |
-| `address_code_timeline.bin` | 3,501 条时间线 | **2.04 MB** |
-| **合计业务数据增量** | — | **2.45 MB** |
+| 数据 | 条目数 | 堆内存增量（JDK 11） | 堆内存增量（JDK 8 上界） |
+|---|---|---|---|
+| `address_code.properties` | 3,209 条 | **0.43 MB** | 0.56 MB |
+| `address_code_timeline.bin` | 3,501 条时间线 | **2.04 MB** | 2.05 MB |
+| **合计业务数据增量** | — | **2.47 MB** | 2.61 MB |
 
-JVM 总堆占用约 **3.50 MB**（含 JVM 基线 1.04 MB + 业务数据 2.45 MB）。`.bin` 占用约为 `.properties` 的 5 倍，因为时间线是 `HashMap<Integer, List<TimelineEntry>>`，对象头开销远大于纯键值对。
+JVM 总堆占用约 **3.52 MB**（JDK 11，含 JVM 基线 1.05 MB + 业务数据 2.47 MB）。`.bin` 占用约为 `.properties` 的 5 倍，因为时间线是 `HashMap<Integer, List<TimelineEntry>>`，对象头开销远大于纯键值对。JDK 9+ 引入 compact strings（Latin-1 字符串从 UTF-16 降为单字节），字符串密集的本库在 JDK 11+ 占用更低，JDK 8 为各版本上界。
 
 更多：[数据内存占用](docs/memory-usage.md)
 

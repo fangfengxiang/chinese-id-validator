@@ -15,10 +15,21 @@ import java.util.List;
  * 3. 时间线匹配：根据出生年份在时间线条目中查找对应地址
  * 4. 历史遗留地址码处理：后缀 01/02/11/20 → 市辖区/城区/郊区/市区
  * 5. 非严格模式：年份不匹配时取第一条时间线条目
+ *
+ * <p><b>配置一致性</b>：{@link #getAddressInfo(int, String, boolean)} 的省/市/区多次查询
+ * 各自调用 {@link DataProvider#getTimeline(int)}，每次读取当前自定义配置，
+ * 不获取跨调用快照。因此自定义数据源的初始化（{@code IdValidator.initialize}）
+ * 须在业务线程开始校验前完成，避免校验进行时发生一次性配置切换导致混合数据。
  */
 public final class AddressResolver {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /** 时间线年份下界回退值（当 startYear 缺失/无法解析时使用，对应 {@link TimelineEntry#DEFAULT_START_YEAR}） */
+    private static final int MIN_TIMELINE_YEAR = 1;
+
+    /** 时间线年份上界回退值（当 endYear 缺失/无法解析时使用，表示无上界，对应 {@link TimelineEntry#DEFAULT_END_YEAR}） */
+    private static final int MAX_TIMELINE_YEAR = 9999;
 
     private AddressResolver() {}
 
@@ -88,8 +99,8 @@ public final class AddressResolver {
             if (!entry.getEndYear().isEmpty()) {
                 endYear = entry.getEndYear();
             }
-            int startY = parseYearSafe(startYear, 1);
-            int endY = parseYearSafe(endYear, 9999);
+            int startY = parseYearSafe(startYear, MIN_TIMELINE_YEAR);
+            int endY = parseYearSafe(endYear, MAX_TIMELINE_YEAR);
             if (year >= startY && year <= endY) {
                 address = entry.getAddress();
                 break;

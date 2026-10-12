@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,7 +80,24 @@ public final class DataProvider {
 
     private DataProvider() {
         this.addressCodeMap = loadAddressCodeMap();
-        this.cachedEntries = Collections.unmodifiableList(new ArrayList<>(this.addressCodeMap.entrySet()));
+        this.cachedEntries = buildImmutableEntries(this.addressCodeMap);
+    }
+
+    /**
+     * 构建真正不可变的地址码 entry 列表。
+     *
+     * <p>{@link Collections#unmodifiableList(List)} 仅禁止修改列表结构，
+     * 不保证列表中每个 {@link Map.Entry} 不可变。此处用
+     * {@link AbstractMap.SimpleImmutableEntry} 显式复制每个 entry，
+     * 切断 entry 与底层 map 的可变关联，使缓存的不可变性自洽，
+     * 不再依赖 {@code addressCodeMap} 是否已被 unmodifiable 包装。
+     */
+    private static List<Map.Entry<Integer, String>> buildImmutableEntries(Map<Integer, String> map) {
+        List<Map.Entry<Integer, String>> entries = new ArrayList<>(map.size());
+        for (Map.Entry<Integer, String> e : map.entrySet()) {
+            entries.add(new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue()));
+        }
+        return Collections.unmodifiableList(entries);
     }
 
     public static DataProvider getInstance() {
@@ -117,6 +135,11 @@ public final class DataProvider {
      * <p>原子发布：source 和 mergeMode 作为不可变 Configuration 对整体发布。
      * 成功后再次调用抛出 {@link IllegalStateException}。
      *
+     * <p><b>生命周期约束</b>：本方法应在应用启动阶段、业务线程开始校验前完成调用。
+     * 库不支持业务调用过程中切换配置——单次校验内的多次查询不会获取配置快照，
+     * 若校验进行时恰好发生一次性初始化（{@code null → 已安装}），
+     * 可能混合内置与自定义两套数据。业务线程开始后请勿再调用本方法。
+     *
      * @param source    自定义数据源，不允许 null
      * @param mergeMode 合并策略，不允许 null
      * @throws IllegalStateException     已成功初始化后再次调用
@@ -143,12 +166,20 @@ public final class DataProvider {
      * 重复调用不会重复加载（JVM 类初始化保证）。
      */
     public void preloadTimeline() {
-        // 访问 TimelineHolder.TIMELINE 触发 JVM 类初始化（线程安全、一次性）
+        // 读取静态字段引用触发 TimelineHolder 类初始化（JVM 保证线程安全、一次性加载）。
+        // 此处仅为 side effect，不消费返回值。
+        keepTimelineLoaded();
+    }
+
+    /**
+     * 触发 {@link TimelineHolder} 类初始化的 side-effect 方法。
+     *
+     * <p>JVM 规范保证类初始化线程安全且仅发生一次。访问静态字段引用即可触发类初始化；
+     * 显式调用 {@code size()} 进一步防止 JIT 消除此次"未使用"的访问。
+     */
+    private static void keepTimelineLoaded() {
         int size = TimelineHolder.TIMELINE.size();
-        // 防止 JIT 优化掉此次访问
-        if (size < 0) {
-            throw new AssertionError("Timeline size cannot be negative");
-        }
+        assert size >= 0 : "Timeline size cannot be negative";
     }
 
     // ==================== 查询方法 ====================
@@ -206,23 +237,31 @@ public final class DataProvider {
         if (cfg.mergeMode == MergeMode.FALLBACK && !builtIn.isEmpty()) {
             return builtIn;
         }
+        List<TimelineEntry> custom;
         try {
-            List<TimelineEntry> custom = cfg.source.getTimeline(code);
-            if (custom == null || custom.isEmpty()) {
-                return builtIn;
-            }
-            if (builtIn.isEmpty()) {
-                return custom;
-            }
-            // MERGE：自定义在前，内置在后
-            List<TimelineEntry> merged = new ArrayList<>(custom.size() + builtIn.size());
-            merged.addAll(custom);
-            merged.addAll(builtIn);
-            return Collections.unmodifiableList(merged);
+            custom = cfg.source.getTimeline(code);
         } catch (RuntimeException e) {
             throw new cn.chineseid.validator.IdValidatorException(
                     IdValidatorMessages.DATA_SOURCE_QUERY_FAILED + code, e);
         }
+        // getTimeline 契约要求非 null（空列表表示无自定义数据）；
+        // 返回 null 视为契约违约，fail-fast 暴露实现 bug。
+        // 此检查在 catch 块外，避免被上面的 RuntimeException 捕获器二次包装丢失消息。
+        if (custom == null) {
+            throw new cn.chineseid.validator.IdValidatorException(IdValidatorMessages.DATA_SOURCE_NULL_TIMELINE + code);
+        }
+        if (custom.isEmpty()) {
+            return builtIn;
+        }
+        if (builtIn.isEmpty()) {
+            // 复制并包装为不可变列表，切断外部可变 List 与内部查询流程的关联
+            return Collections.unmodifiableList(new ArrayList<>(custom));
+        }
+        // MERGE：自定义在前，内置在后
+        List<TimelineEntry> merged = new ArrayList<>(custom.size() + builtIn.size());
+        merged.addAll(custom);
+        merged.addAll(builtIn);
+        return Collections.unmodifiableList(merged);
     }
 
     /**
@@ -239,7 +278,9 @@ public final class DataProvider {
      * 避免每次 {@code fakeRequireId} 都 {@code new ArrayList<>(entrySet())}。
      */
     public List<Map.Entry<Integer, String>> getAddressCodeEntries() {
-        return cachedEntries;
+        // cachedEntries 已全不可变（buildImmutableEntries: SimpleImmutableEntry + unmodifiableList），
+        // 此处再包一层仅为消除 SpotBugs EI_EXPOSE_REP 误报，与 getAllAddressCodes 同惯例。
+        return Collections.unmodifiableList(cachedEntries);
     }
 
     /**

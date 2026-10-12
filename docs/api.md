@@ -187,4 +187,4 @@ IdValidator.preload();
 |---|---|
 | `IllegalArgumentException` | `initialize(source, null)` 或 `initialize(null, mergeMode)` |
 | `IllegalStateException` | 重复调用 `initialize()` |
-| `IdValidatorException` | 自定义数据源查询时抛出 `RuntimeException` |
+| `IdValidatorException` | 自定义数据源查询时抛出 `RuntimeException`，或方法返回 `null` 违反非空契约（`getTimeline`/`getAddressName` 等） |

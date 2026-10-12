@@ -21,4 +21,7 @@ public final class IdValidatorMessages {
     public static final String ID_MUST_BE_15_DIGITS = "ID must be 15 digits, got: ";
 
     public static final String DATA_SOURCE_QUERY_FAILED = "Custom data source query failed for address code: ";
+
+    public static final String DATA_SOURCE_NULL_TIMELINE =
+            "CustomDataSource.getTimeline returned null for address code (violated non-null contract): ";
 }
