@@ -57,6 +57,21 @@ public final class TimelineEntry {
     }
 
     /**
+     * 判断该条目的年份区间是否与给定范围相交。
+     *
+     * <p>两个闭区间 [a1, a2] 与 [b1, b2] 相交当且仅当 a1 ≤ b2 且 a2 ≥ b1。
+     * 用于地址码有效性校验：判断某地址码的时间线是否与身份证时代
+     * [1985, 当前年] 相交——只要在身份证时代被使用过，该地址码即为有效。
+     *
+     * @param rangeStart 范围下界（含）
+     * @param rangeEnd   范围上界（含）
+     * @return 该条目区间与给定范围有重叠返回 true
+     */
+    public boolean intersectsRange(int rangeStart, int rangeEnd) {
+        return getStartYearInt() <= rangeEnd && getEndYearInt() >= rangeStart;
+    }
+
+    /**
      * 解析起始年份为整数。
      *
      * <p>空字符串、"未曾使用"、非数字均回退为 {@value #DEFAULT_START_YEAR}（公元 1 年，

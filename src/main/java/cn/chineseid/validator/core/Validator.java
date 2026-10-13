@@ -6,7 +6,6 @@ import java.time.LocalDate;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.List;
 
 /**
  * 身份证号校验器。
@@ -19,16 +18,23 @@ public final class Validator {
     private Validator() {}
 
     /**
-     * 校验地址码。只检查省级信息是否非空。
+     * 校验地址码有效性。
+     *
+     * <p>有效性标准（Option B）：地址码时间线与身份证时代 [1985, 当前年] 相交，
+     * 不查出生年。地址码反映发证时的行政区划（发证时间落在身份证时代内），
+     * 而非出生时的行政区划，因此不依赖出生年判断有效性。
+     *
+     * <p>此方法将<b>有效性</b>（地址码是否可能出现在真实身份证上）与
+     * <b>地址解析</b>（地址码在特定出生年对应的名称）分离。
+     * 地址解析仍由 {@link AddressResolver#getAddressInfo} 负责，以出生年为启发式。
      *
      * @param idCode 解析后的身份证号
-     * @param strict 是否严格模式
-     * @return true 如果省级地址信息非空
+     * @param strict 是否严格模式（当前不影响地址码有效性判断——两种模式均使用
+     *               时间线相交检查；strict 仅影响地址解析时的年份匹配策略）
+     * @return true 如果地址码在身份证时代内被使用过
      */
     public static boolean checkAddressCode(IdCode idCode, boolean strict) {
-        List<String> addressInfo =
-                AddressResolver.getAddressInfo(idCode.getAddressCode(), idCode.getBirthdayCode(), strict);
-        return !addressInfo.get(0).isEmpty();
+        return AddressResolver.isAddressCodeValid(idCode.getAddressCode());
     }
 
     /**

@@ -2,6 +2,7 @@ package cn.chineseid.validator.util;
 
 import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.TimelineEntry;
+import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,16 @@ import java.util.List;
 public final class AddressResolver {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /**
+     * 身份证时代起始年份。
+     *
+     * <p>1985 年《居民身份证条例》施行，中国开始颁发第一代身份证。
+     * 地址码反映的是<b>发证时</b>的行政区划，而非出生时的行政区划。
+     * 因此，地址码有效性校验以 [1985, 当前年] 为基准——
+     * 只要该地址码的时间线在身份证时代内被使用过，即为有效。
+     */
+    private static final int ID_CARD_ERA_START_YEAR = 1985;
 
     private AddressResolver() {}
 
@@ -55,6 +66,48 @@ public final class AddressResolver {
         result.add(city);
         result.add(district);
         return result;
+    }
+
+    /**
+     * 判断地址码是否有效。
+     *
+     * <p><b>有效性标准</b>（Option B）：地址码时间线与身份证时代 [1985, 当前年] 相交，
+     * 不查出生年。地址码反映发证时的行政区划，发证时间一定落在身份证时代内
+     * （身份证 1985 年才开始颁发），因此只要该码的时间线在身份证时代被使用过即为有效。
+     *
+     * <p>此方法将<b>有效性</b>（该地址码是否可能出现在真实身份证上）与
+     * <b>地址解析</b>（该地址码在特定出生年对应的行政区划名称）分离：
+     * <ul>
+     *   <li>{@code isAddressCodeValid} — 判断地址码是否有效，不依赖出生年
+     *   <li>{@link #getAddress} — 解析地址名称，以出生年为启发式线索
+     * </ul>
+     *
+     * <p>对 130123（正定县，时间线 1986–1992 栾城县 / 1993–至今 正定县），
+     * 即使出生年为 1980（早于时间线起点 1986），该码仍然有效——
+     * 因为其时间线与 [1985, now] 相交，发证时间落在身份证时代内。
+     *
+     * <p>对 110999（不在任何数据源中），无时间线且非遗留码 → 无效。
+     *
+     * @param addressCode 6 位地址码（整数）
+     * @return true 如果该地址码在身份证时代内被使用过
+     */
+    public static boolean isAddressCodeValid(int addressCode) {
+        List<TimelineEntry> timeline = DataProvider.getInstance().getTimeline(addressCode);
+
+        if (timeline.isEmpty()) {
+            // 无时间线：检查是否为遗留码（后缀 01/02/11/20）或在地址码映射表中
+            String codeStr = String.format("%06d", addressCode);
+            return !handleLegacyCode(codeStr).isEmpty();
+        }
+
+        // 有时间线：检查是否有任何条目与 [ID_CARD_ERA_START_YEAR, 当前年] 相交
+        int currentYear = Year.now().getValue();
+        for (TimelineEntry entry : timeline) {
+            if (entry.intersectsRange(ID_CARD_ERA_START_YEAR, currentYear)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
