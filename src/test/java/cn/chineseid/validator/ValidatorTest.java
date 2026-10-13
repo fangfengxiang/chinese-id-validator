@@ -22,6 +22,13 @@ class ValidatorTest {
     }
 
     @Test
+    @DisplayName("checkBirthdayCode 非闰年 2 月 29 日返回 false")
+    void shouldRejectFeb29InNonLeapYear() {
+        assertFalse(Validator.checkBirthdayCode("20230229"));
+        assertFalse(Validator.checkBirthdayCode("21000229"));
+    }
+
+    @Test
     @DisplayName("checkBirthdayCode null 返回 false")
     void shouldRejectNullBirthday() {
         assertFalse(Validator.checkBirthdayCode(null));

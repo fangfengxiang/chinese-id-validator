@@ -15,6 +15,8 @@
 
 其他语言实现参考：[Go](https://github.com/guanguans/id-validator) · [Python](https://github.com/jxlwqq/id-validator.py) · [Ruby](https://github.com/renyijiu/id_validator) · [JavaScript](https://github.com/mc-zone/IDValidator)
 
+> 各码的背景知识、组成结构、判断逻辑及设计取舍详见 [身份证号码业务域说明](docs/identity-number-domain.md)
+
 ## 特性
 
 - **验证**：宽松 / 严格 / 基础三种模式，严格模式校验地址码是否真实存在

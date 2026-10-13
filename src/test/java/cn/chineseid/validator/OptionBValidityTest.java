@@ -55,11 +55,12 @@ class OptionBValidityTest {
     // ========== 边界场景 ==========
 
     @Test
-    @DisplayName("110201（昌平县，时间线 1981 年结束）不在 ID 卡时代 [1985,now] → 无效")
+    @DisplayName("110201（昌平县，时间线 1981 年结束）→ Strict 无效，Loose 有效（legacy 后缀 01 + 省级+地级证据）")
     void shouldRejectPreIdCardEraCode() {
         IdCode code = CodeParser.parse("110201199001011234");
         assertFalse(Validator.checkAddressCode(code, true), "110201 strict should be invalid");
-        assertFalse(Validator.checkAddressCode(code, false), "110201 loose should be invalid");
+        assertTrue(
+                Validator.checkAddressCode(code, false), "110201 loose should be valid (legacy 01 + parent evidence)");
     }
 
     @Test

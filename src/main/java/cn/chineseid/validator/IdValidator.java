@@ -18,6 +18,7 @@ import cn.chineseid.validator.util.ChineseZodiacCalculator;
 import cn.chineseid.validator.util.ConstellationCalculator;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
 import java.util.List;
 
 /**
@@ -38,7 +39,8 @@ import java.util.List;
  */
 public final class IdValidator {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
 
     private IdValidator() {}
 
