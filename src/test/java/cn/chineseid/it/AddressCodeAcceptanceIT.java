@@ -1,8 +1,9 @@
-package cn.chineseid.validator;
+package cn.chineseid.it;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import cn.chineseid.validator.IdValidator;
 import cn.chineseid.validator.core.CheckBitCalculator;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -28,8 +29,16 @@ import org.junit.jupiter.api.Test;
  *
  * <p>构造方式：固定生日 19900101 + 顺序码 001 + 计算校验码，
  * 确保非地址码因素不影响校验结果。
+ *
+ * <p>由 maven-failsafe-plugin 在 integration-test 阶段执行（{@code mvn verify}）。
+ * 命名约定 {@code *IT.java} 区别于单元测试 {@code *Test.java}（surefire）。
+ * 属于功能测试层（全量数据验收），与端到端集成测试 {@link IdValidationIT} 同处 failsafe 层。
+ *
+ * <p><b>快照断言基线</b>：测试中的 7185/6177/6274 等固定数字是<b>当前数据版本的验收基线</b>，
+ * 用于捕获行政区划数据变更导致的意外回归。更新数据后若数字变化，
+ * 需人工核对变化原因后再更新基线，勿为让测试通过而直接改数字。
  */
-class AddressCodeAcceptanceTest {
+class AddressCodeAcceptanceIT {
 
     /** 固定生日码（ID 卡时代内，确保不因生日影响地址码判断） */
     private static final String BIRTHDAY = "19900101";
@@ -86,10 +95,13 @@ class AddressCodeAcceptanceTest {
         assertEquals(0, invariantViolations, "不变量 strict→loose→basic 不应被违反");
 
         // 预期数量（基于数据分析）
-        assertEquals(6177, strictPass, "Strict 通过数应为 6177");
-        assertEquals(1008, total - strictPass, "Strict 不通过数应为 1008");
-        assertEquals(6274, loosePass, "Loose 通过数应为 6274（6177 完整时间线 + 97 历史后缀兼容）");
-        assertEquals(911, total - loosePass, "Loose 不通过数应为 911");
+        // ⚠️ 数据版本基线：6177/6274 等数字与当前行政区划数据版本耦合。
+        // 更新 address_code_timeline 数据后数量可能合理变化——此时必须人工核对
+        // 变化原因（新增/撤销的区划是否符合预期），禁止仅为让测试变绿而直接改数字。
+        assertEquals(6177, strictPass, "Strict 通过数应为 6177（数据版本基线，变更需人工核对）");
+        assertEquals(1008, total - strictPass, "Strict 不通过数应为 1008（数据版本基线，变更需人工核对）");
+        assertEquals(6274, loosePass, "Loose 通过数应为 6274（6177 完整时间线 + 97 历史后缀兼容；数据版本基线，变更需人工核对）");
+        assertEquals(911, total - loosePass, "Loose 不通过数应为 911（数据版本基线，变更需人工核对）");
     }
 
     /**
@@ -159,7 +171,7 @@ class AddressCodeAcceptanceTest {
     private static List<Integer> loadAndSortTimelineCodes() {
         Gson gson = new Gson();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                AddressCodeAcceptanceTest.class.getResourceAsStream("/data/address_code_timeline.json"),
+                AddressCodeAcceptanceIT.class.getResourceAsStream("/data/address_code_timeline.json"),
                 StandardCharsets.UTF_8))) {
 
             Map<String, List<Map<String, String>>> timeline =

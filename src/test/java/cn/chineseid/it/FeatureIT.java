@@ -1,7 +1,8 @@
-package cn.chineseid.validator;
+package cn.chineseid.it;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import cn.chineseid.validator.IdValidator;
 import cn.chineseid.validator.generator.FakeIdBuilder;
 import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.Sex;
@@ -12,10 +13,14 @@ import org.junit.jupiter.api.Test;
 /**
  * 功能测试。
  *
- * 验证所有核心功能：假号生成→校验→信息解析→升级。
+ * <p>验证所有核心功能：假号生成→校验→信息解析→升级。
+ *
+ * <p>由 maven-failsafe-plugin 在 integration-test 阶段执行（{@code mvn verify}）。
+ * 命名约定 {@code *IT.java} 区别于单元测试 {@code *Test.java}（surefire）。
+ * 属于功能测试层（端到端核心流程），与全量数据验收 {@link AddressCodeAcceptanceIT} 同处 failsafe 层。
  */
 @DisplayName("功能测试")
-class FeatureTest {
+class FeatureIT {
 
     @Test
     @DisplayName("FakeId 生成的身份证号应通过宽松校验")

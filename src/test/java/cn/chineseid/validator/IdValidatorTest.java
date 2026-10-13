@@ -120,4 +120,22 @@ class IdValidatorTest {
     void shouldThrowFor18DigitUpgrade() {
         assertThrows(IllegalArgumentException.class, () -> IdValidator.upgradeId("110101199003076534"));
     }
+
+    @Test
+    @DisplayName("isValidBasic 对 15 位身份证号应通过")
+    void shouldPassIsValidBasicFor15Digit() {
+        assertTrue(IdValidator.isValidBasic("610104620927690"));
+    }
+
+    @Test
+    @DisplayName("isValidBasic 对 18 位校验码错误应返回 false")
+    void shouldFailIsValidBasicForWrongCheckBit() {
+        assertFalse(IdValidator.isValidBasic("110101199003076537"));
+    }
+
+    @Test
+    @DisplayName("upgradeId 对有效 18 位身份证号应抛出异常")
+    void shouldThrowForValid18DigitUpgrade() {
+        assertThrows(IllegalArgumentException.class, () -> IdValidator.upgradeId("110101199003076536"));
+    }
 }

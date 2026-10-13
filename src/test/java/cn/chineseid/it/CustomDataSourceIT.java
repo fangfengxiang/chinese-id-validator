@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
  *   <li>MERGE 模式：总是查自定义，与内置合并，自定义优先
  *   <li>初始化生命周期：重复初始化、null 参数校验
  *   <li>异常传播：自定义数据源抛异常时包装为 IdValidatorException
+ *   <li>查询成本契约：基础校验优先（零数据源调用）、legacy 推断查询次数上界
  * </ol>
  */
 @DisplayName("集成测试：自定义数据源合并策略")
@@ -231,7 +232,45 @@ class CustomDataSourceIT {
     @Test
     @DisplayName("自定义数据源抛 RuntimeException 时包装为 IdValidatorException")
     void shouldWrapDataSourceException() {
-        CustomDataSource failingSource = new CustomDataSource() {
+        IdValidator.initialize(newFailingSource(), MergeMode.MERGE);
+
+        String id = buildValidId(BUILTIN_CODE, "19900307");
+
+        assertThrows(
+                IdValidatorException.class,
+                () -> {
+                    IdValidator.getInfo(id, false);
+                },
+                "数据源异常应包装为 IdValidatorException");
+    }
+
+    @Test
+    @DisplayName("isLooseValid/isStrictValid 校验路径：数据源异常同样包装为 IdValidatorException")
+    void shouldWrapDataSourceExceptionOnValidationPath() {
+        IdValidator.initialize(newFailingSource(), MergeMode.MERGE);
+
+        // 基础信息合法的号码才会到达地址码校验，从而触发数据源查询
+        String id = buildValidId(BUILTIN_CODE, "19900307");
+
+        assertThrows(
+                IdValidatorException.class,
+                () -> {
+                    IdValidator.isLooseValid(id);
+                },
+                "isLooseValid 路径数据源异常应包装为 IdValidatorException");
+        assertThrows(
+                IdValidatorException.class,
+                () -> {
+                    IdValidator.isStrictValid(id);
+                },
+                "isStrictValid 路径数据源异常应包装为 IdValidatorException");
+    }
+
+    // ==================== 查询成本契约（MERGE 模式） ====================
+
+    /** 始终抛异常的数据源（模拟外部服务故障） */
+    private static CustomDataSource newFailingSource() {
+        return new CustomDataSource() {
             @Override
             public List<TimelineEntry> getTimeline(int code) {
                 throw new RuntimeException("模拟 Nacos 连接失败");
@@ -242,15 +281,76 @@ class CustomDataSourceIT {
                 throw new RuntimeException("模拟 Nacos 连接失败");
             }
         };
-        IdValidator.initialize(failingSource, MergeMode.MERGE);
+    }
 
-        String id = buildValidId(BUILTIN_CODE, "19900307");
+    /** 计数数据源：记录 SPI 调用次数，用于查询成本契约测试 */
+    private static final class CountingSource implements CustomDataSource {
+        final AtomicInteger timelineCalls = new AtomicInteger();
+        final AtomicInteger nameCalls = new AtomicInteger();
 
-        assertThrows(
-                IdValidatorException.class,
-                () -> {
-                    IdValidator.getInfo(id, false);
-                },
-                "数据源异常应包装为 IdValidatorException");
+        @Override
+        public List<TimelineEntry> getTimeline(int code) {
+            timelineCalls.incrementAndGet();
+            return Collections.emptyList();
+        }
+
+        @Override
+        public String getAddressName(int code) {
+            nameCalls.incrementAndGet();
+            return null;
+        }
+    }
+
+    @Test
+    @DisplayName("基础校验不通过的号码不触发任何数据源查询（基础校验优先于地址码数据访问）")
+    void shouldNotQueryDataSourceWhenBasicCheckFails() {
+        CountingSource source = new CountingSource();
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        // 日期非法（2 月 30 日）：校验位按非法日期体计算，隔离生日校验为唯一失败因素
+        String badDateId = buildValidId(BUILTIN_CODE, "19900230");
+        // 校验位非法：合法号码篡改末位
+        String validId = buildValidId(BUILTIN_CODE, "19900307");
+        String badCheckBitId = validId.substring(0, 17) + (validId.charAt(17) == '0' ? '1' : '0');
+
+        assertFalse(IdValidator.isLooseValid(badDateId));
+        assertFalse(IdValidator.isStrictValid(badDateId));
+        assertFalse(IdValidator.isLooseValid(badCheckBitId));
+        assertFalse(IdValidator.isStrictValid(badCheckBitId));
+
+        assertEquals(0, source.timelineCalls.get(), "基础校验失败不应触发 getTimeline 查询");
+        assertEquals(0, source.nameCalls.get(), "基础校验失败不应触发 getAddressName 查询");
+    }
+
+    @Test
+    @DisplayName("基础校验不通过的号码即使数据源故障也返回 false（不抛 IdValidatorException）")
+    void shouldReturnFalseWithoutThrowingWhenBasicCheckFailsAndSourceFails() {
+        IdValidator.initialize(newFailingSource(), MergeMode.MERGE);
+
+        // 基础校验殿后地址码数据访问：日期非法的号码在触达数据源前即返回 false
+        String badDateId = buildValidId(BUILTIN_CODE, "19900230");
+
+        assertFalse(IdValidator.isLooseValid(badDateId), "基础校验失败应直接返回 false，不触达故障数据源");
+        assertFalse(IdValidator.isStrictValid(badDateId), "基础校验失败应直接返回 false，不触达故障数据源");
+    }
+
+    @Test
+    @DisplayName("Loose 历史兼容推断查询次数上界：getTimeline ≤ 3（完整码+省级+地级），防 N+1 回归")
+    void shouldBoundQueryCountForLegacyInference() {
+        CountingSource source = new CountingSource();
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        // 110201（昌平县，内置时间线终于 1981）在 Loose 模式走历史兼容推断路径：
+        // getTimeline 查询 = 完整码 110201 + 省级 110000 + 地级 110200，共 3 次；
+        // 110000/110200 的时间线与身份证时代相交 → 证据成立，不再查映射表 → getAddressName 0 次。
+        String id = buildValidId(110201, "19900101");
+
+        assertTrue(IdValidator.isLooseValid(id), "110201 在 Loose 模式应有效（legacy 后缀 01 + 省级+地级证据）");
+        assertTrue(
+                source.timelineCalls.get() <= 3,
+                "legacy 推断 getTimeline 查询不应超过 3 次（完整码+省级+地级），实际: " + source.timelineCalls.get());
+        assertTrue(
+                source.nameCalls.get() <= 2,
+                "legacy 推断 getAddressName 查询不应超过 2 次（仅省级/地级时间线无证据时查映射表），实际: " + source.nameCalls.get());
     }
 }

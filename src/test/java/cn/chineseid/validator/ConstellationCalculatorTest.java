@@ -79,4 +79,16 @@ class ConstellationCalculatorTest {
     void shouldReturnEmptyForNonNumericMonth() {
         assertEquals("", ConstellationCalculator.calculate("1990ab01"));
     }
+
+    @Test
+    @DisplayName("月份为 0 返回空字符串")
+    void shouldReturnEmptyForZeroMonth() {
+        assertEquals("", ConstellationCalculator.calculate("19900001"));
+    }
+
+    @Test
+    @DisplayName("月份为 13 返回空字符串")
+    void shouldReturnEmptyForMonthThirteen() {
+        assertEquals("", ConstellationCalculator.calculate("19901301"));
+    }
 }

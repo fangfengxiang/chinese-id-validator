@@ -2,6 +2,7 @@ package cn.chineseid.validator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import cn.chineseid.validator.core.CheckBitCalculator;
 import cn.chineseid.validator.core.CodeParser;
 import cn.chineseid.validator.core.Validator;
 import cn.chineseid.validator.model.IdCode;
@@ -57,10 +58,28 @@ class OptionBValidityTest {
     @Test
     @DisplayName("110201（昌平县，时间线 1981 年结束）→ Strict 无效，Loose 有效（legacy 后缀 01 + 省级+地级证据）")
     void shouldRejectPreIdCardEraCode() {
+        // Loose 契约语义（docs/identity-number-domain.md 2.2/2.3）：
+        // 接受"结构合理但无法证明在 1985 年后使用过"的历史码。
+        // 注意：地级 110200 的证据区间（终于 2014）与 110201 自身时间线（终于 1981）时间不相交——
+        // 上级证据是受约束结构推断，不证明同期历史隶属关系。这是 Loose 的明文契约，不是 bug。
         IdCode code = CodeParser.parse("110201199001011234");
         assertFalse(Validator.checkAddressCode(code, true), "110201 strict should be invalid");
         assertTrue(
                 Validator.checkAddressCode(code, false), "110201 loose should be valid (legacy 01 + parent evidence)");
+    }
+
+    @Test
+    @DisplayName("132701（秦皇岛市，终于 1982）→ Strict/Loose 均无效：地级 132700（唐山地区）时间线终于 1982，无身份证时代证据")
+    void shouldRejectLegacyCodeWhenParentEvidenceMissing() {
+        // 132701 满足 legacy 后缀 01，省级 130000（河北省）证据成立，
+        // 但地级 132700 时间线终于 1982、不在映射表 → 上级证据不足 → Loose 拒绝。
+        // 校验位按真实算法计算，确保基础校验通过，隔离地址码为唯一失败因素。
+        String body = "13270119900101123";
+        String id = body + CheckBitCalculator.calculate(body);
+
+        assertTrue(IdValidator.isValidBasic(id), "基础校验应通过（隔离地址码因素）");
+        assertFalse(IdValidator.isStrictValid(id), "132701 strict should be invalid（时间线终于 1982，不与身份证时代相交）");
+        assertFalse(IdValidator.isLooseValid(id), "132701 loose should be invalid（地级 132700 无身份证时代证据）");
     }
 
     @Test

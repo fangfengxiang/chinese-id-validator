@@ -61,4 +61,71 @@ class AddressResolverTest {
         String address = AddressResolver.getAddress(110000, "19900101", false);
         assertNotNull(address);
     }
+
+    @Test
+    @DisplayName("港澳台码（8 开头）宽松模式也不做历史兼容")
+    void shouldRejectHkmacaoInLegacyCompat() {
+        assertFalse(AddressResolver.isAddressCodeValid(899999, false));
+    }
+
+    @Test
+    @DisplayName("省级无证据的历史码宽松模式应返回 false")
+    void shouldRejectLegacyWithoutProvinceEvidence() {
+        assertFalse(AddressResolver.isAddressCodeValid(9901, false));
+    }
+
+    @Test
+    @DisplayName("110201 严格模式无效、宽松模式有效（历史兼容）")
+    void shouldAcceptLegacyCode110201InLooseMode() {
+        assertFalse(AddressResolver.isAddressCodeValid(110201));
+        assertTrue(AddressResolver.isAddressCodeValid(110201, false));
+    }
+
+    @Test
+    @DisplayName("严格模式年份不匹配时返回空字符串")
+    void shouldReturnEmptyInStrictModeWhenYearMismatch() {
+        assertEquals("", AddressResolver.getAddress(130123, "18000101", true));
+    }
+
+    @Test
+    @DisplayName("非严格模式年份早于时间线时回退到最近条目")
+    void shouldFallbackToNearestEntryBeforeTimeline() {
+        assertEquals("栾城县", AddressResolver.getAddress(130123, "18000101", false));
+    }
+
+    @Test
+    @DisplayName("birthdayCode 为 null 时应正常解析（parseYear 返回 0）")
+    void shouldHandleNullBirthdayCode() {
+        assertEquals("东城区", AddressResolver.getAddress(110101, null, false));
+    }
+
+    @Test
+    @DisplayName("历史遗留码后缀 01 返回市辖区")
+    void shouldHandleLegacySuffix01() {
+        assertEquals("市辖区", AddressResolver.getAddress(999901, "19900101", false));
+    }
+
+    @Test
+    @DisplayName("历史遗留码后缀 02 返回城区")
+    void shouldHandleLegacySuffix02() {
+        assertEquals("城区", AddressResolver.getAddress(999902, "19900101", false));
+    }
+
+    @Test
+    @DisplayName("历史遗留码后缀 11 返回郊区")
+    void shouldHandleLegacySuffix11() {
+        assertEquals("郊区", AddressResolver.getAddress(999911, "19900101", false));
+    }
+
+    @Test
+    @DisplayName("历史遗留码后缀 20 返回市区")
+    void shouldHandleLegacySuffix20() {
+        assertEquals("市区", AddressResolver.getAddress(999920, "19900101", false));
+    }
+
+    @Test
+    @DisplayName("历史遗留码未知后缀返回映射表查找结果")
+    void shouldHandleLegacyUnknownSuffix() {
+        assertEquals("", AddressResolver.getAddress(999999, "19900101", false));
+    }
 }

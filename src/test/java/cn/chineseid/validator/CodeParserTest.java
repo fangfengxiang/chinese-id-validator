@@ -59,4 +59,16 @@ class CodeParserTest {
         assertThrows(IllegalArgumentException.class, () -> CodeParser.parse("1234567890123456789"));
         assertThrows(IllegalArgumentException.class, () -> CodeParser.parse(null));
     }
+
+    @Test
+    @DisplayName("15 位含非数字字符应抛出异常")
+    void shouldThrowForNonDigitInFifteenBit() {
+        assertThrows(IllegalArgumentException.class, () -> CodeParser.parse("1101019003076a5"));
+    }
+
+    @Test
+    @DisplayName("18 位校验码字符非法应抛出异常")
+    void shouldThrowForInvalidCheckBitCharInEighteenBit() {
+        assertThrows(IllegalArgumentException.class, () -> CodeParser.parse("11010119900307653A"));
+    }
 }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import cn.chineseid.validator.core.CodeParser;
 import cn.chineseid.validator.core.Validator;
 import cn.chineseid.validator.model.IdCode;
+import cn.chineseid.validator.model.IdType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -114,5 +115,33 @@ class ValidatorTest {
     void shouldAcceptValidAddressCode() {
         IdCode idCode = CodeParser.parse("110101199003076536");
         assertTrue(Validator.checkAddressCode(idCode, true));
+    }
+
+    @Test
+    @DisplayName("validate 18 位顺序码非法返回 false")
+    void shouldReject18DigitBadOrderCode() {
+        IdCode code = new IdCode("11010119900307012", 110101, "19900307", "01", "6", IdType.EIGHTEEN);
+        assertFalse(Validator.validate(code, true));
+    }
+
+    @Test
+    @DisplayName("validate 15 位地址码非法返回 false")
+    void shouldReject15DigitBadAddressCode() {
+        IdCode code = new IdCode("999999800101123", 999999, "19800101", "123", "", IdType.FIFTEEN);
+        assertFalse(Validator.validate(code, true));
+    }
+
+    @Test
+    @DisplayName("validate 15 位生日码非法返回 false")
+    void shouldReject15DigitBadBirthdayCode() {
+        IdCode code = new IdCode("110101800230123", 110101, "19800230", "123", "", IdType.FIFTEEN);
+        assertFalse(Validator.validate(code, true));
+    }
+
+    @Test
+    @DisplayName("validate 15 位顺序码非法返回 false")
+    void shouldReject15DigitBadOrderCode() {
+        IdCode code = new IdCode("110101800101123", 110101, "19800101", "12", "", IdType.FIFTEEN);
+        assertFalse(Validator.validate(code, true));
     }
 }

@@ -3,10 +3,14 @@ package cn.chineseid.validator;
 import static org.junit.jupiter.api.Assertions.*;
 
 import cn.chineseid.validator.data.CustomDataSource;
+import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.data.MergeMode;
 import cn.chineseid.validator.model.IdInfo;
 import cn.chineseid.validator.model.TimelineEntry;
+import cn.chineseid.validator.util.AddressResolver;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -212,6 +216,96 @@ class CustomTimelineTest {
         String id = buildValidId(110101, "19900307");
         IdInfo info = IdValidator.getInfo(id, false);
         assertTrue(info.getAddress().contains("东城区"), "preload 后内置数据应正常可用");
+    }
+
+    // ==================== 覆盖率补充分支测试 ====================
+
+    @Test
+    @DisplayName("normalizeBoundaries：start > end 应抛出 IllegalArgumentException")
+    void shouldThrowForReversedYearRange() {
+        CustomDataSource source = new TestDataSource(
+                Collections.emptyMap(),
+                Collections.singletonMap(110999, Collections.singletonList(new TimelineEntry("测试区", "2000", "1990"))));
+        IdValidator.initialize(source, MergeMode.MERGE);
+        assertThrows(
+                IllegalArgumentException.class, () -> DataProvider.getInstance().getTimeline(110999));
+    }
+
+    @Test
+    @DisplayName("hasAddressEvidence：仅映射表有名称时视为有证据")
+    void shouldAcceptLegacyViaMapEvidence() {
+        // 129900 不在内置数据中，自定义源提供名称 → hasAddressEvidence 走 map 分支
+        CustomDataSource source = new TestDataSource(Collections.singletonMap(129900, "测试市"), Collections.emptyMap());
+        IdValidator.initialize(source, MergeMode.FALLBACK);
+        // 129901 后缀 01，省级 120000 内置有证据，地级 129900 自定义 map 有证据
+        assertTrue(AddressResolver.isAddressCodeValid(129901, false));
+    }
+
+    @Test
+    @DisplayName("回退最近条目：多时间线年份大于所有 endYear 时取最近")
+    void shouldFallbackToNearestWhenYearExceedsAllEntries() {
+        CustomDataSource source = new TestDataSource(
+                Collections.emptyMap(),
+                Collections.singletonMap(
+                        110999,
+                        Arrays.asList(
+                                new TimelineEntry("甲区", "1990", "1995"), new TimelineEntry("乙区", "1996", "2000"))));
+        IdValidator.initialize(source, MergeMode.FALLBACK);
+
+        // year 2030 > 两条 endYear → 回退到最近（乙区 dist=30 < 甲区 dist=35）
+        assertEquals("乙区", AddressResolver.getAddress(110999, "20300101", false));
+    }
+
+    @Test
+    @DisplayName("回退最近条目：年份小于所有 startYear 时取最近")
+    void shouldFallbackToNearestWhenYearBeforeAllEntries() {
+        CustomDataSource source = new TestDataSource(
+                Collections.emptyMap(),
+                Collections.singletonMap(
+                        110999,
+                        Arrays.asList(
+                                new TimelineEntry("甲区", "1990", "1995"), new TimelineEntry("乙区", "1996", "2000"))));
+        IdValidator.initialize(source, MergeMode.FALLBACK);
+
+        // year 1980 < 两条 startYear → 回退到最近（甲区 dist=10 < 乙区 dist=16）
+        assertEquals("甲区", AddressResolver.getAddress(110999, "19800101", false));
+    }
+
+    // ==================== Loose 历史兼容契约测试 ====================
+
+    @Test
+    @DisplayName("映射表证据不放行非遗留后缀的完整六位码（Loose 契约：无映射表回退分支）")
+    void shouldRejectNonLegacySuffixCodeWithOnlyMapEvidence() {
+        // 999903 不在内置数据中。自定义源提供：完整码映射名称 + 省级 990000/地级 999900 全期时间线。
+        // 除"后缀不属于 01/02/11/20"外一切证据齐备 → Loose 仍拒绝：
+        // 映射表证据仅用于上级区划证据检查（hasAddressEvidence），
+        // 不构成完整六位码的独立放行依据（见 docs/identity-number-domain.md 2.2/7.2）。
+        Map<Integer, List<TimelineEntry>> timelines = new HashMap<>();
+        timelines.put(990000, Collections.singletonList(new TimelineEntry("测试省", "", "")));
+        timelines.put(999900, Collections.singletonList(new TimelineEntry("测试市", "", "")));
+        CustomDataSource source = new TestDataSource(Collections.singletonMap(999903, "测试区"), timelines);
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        String id = buildValidId(999903, "19900101");
+        assertTrue(IdValidator.isValidBasic(id), "基础校验应通过（隔离地址码因素）");
+        assertFalse(IdValidator.isStrictValid(id), "999903 strict should be invalid");
+        assertFalse(IdValidator.isLooseValid(id), "999903 loose should be invalid（非遗留后缀，映射表证据不放行完整码）");
+    }
+
+    @Test
+    @DisplayName("遗留后缀 + 省级/地级证据全由自定义源提供 → Loose 有效（legacy 推断消费自定义数据）")
+    void shouldAcceptLegacyCodeWithCustomAncestorEvidence() {
+        // 999901/999900/990000 均不在内置数据中；自定义源提供省级+地级全期时间线。
+        // 999901 后缀 01 + 两级上级证据齐备 → Loose 通过，证明 legacy 推断走合并后的数据视图。
+        Map<Integer, List<TimelineEntry>> timelines = new HashMap<>();
+        timelines.put(990000, Collections.singletonList(new TimelineEntry("测试省", "", "")));
+        timelines.put(999900, Collections.singletonList(new TimelineEntry("测试市", "", "")));
+        CustomDataSource source = new TestDataSource(Collections.emptyMap(), timelines);
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        String id = buildValidId(999901, "19900101");
+        assertFalse(IdValidator.isStrictValid(id), "999901 strict should be invalid（完整码无时间线证据）");
+        assertTrue(IdValidator.isLooseValid(id), "999901 loose should be valid（legacy 01 + 自定义省级+地级证据）");
     }
 
     // ==================== 测试用 DataSource 实现 ====================
