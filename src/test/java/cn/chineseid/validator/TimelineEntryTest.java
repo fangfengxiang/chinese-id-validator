@@ -57,10 +57,11 @@ class TimelineEntryTest {
     }
 
     @Test
-    @DisplayName("coversYear 始未曾使用作为起始年份时取默认下界")
+    @DisplayName("coversYear 未曾使用作为起始年份时取默认下界 1，公元 0 年不被覆盖")
     void shouldHandleNeverUsedStartYear() {
         TimelineEntry entry = new TimelineEntry("某地", "未曾使用", "");
-        assertTrue(entry.coversYear(0));
+        assertFalse(entry.coversYear(0));
+        assertTrue(entry.coversYear(1));
         assertTrue(entry.coversYear(2024));
     }
 
@@ -112,5 +113,53 @@ class TimelineEntryTest {
         assertNotEquals(base, new TimelineEntry("上海市", "1980", "2000"));
         assertNotEquals(base, new TimelineEntry("北京市", "1990", "2000"));
         assertNotEquals(base, new TimelineEntry("北京市", "1980", "2010"));
+    }
+
+    @Test
+    @DisplayName("getStartYearInt/getEndYearInt 解析数字年份")
+    void shouldParseNumericYearToInt() {
+        TimelineEntry entry = new TimelineEntry("某地", "1980", "2000");
+        assertEquals(1980, entry.getStartYearInt());
+        assertEquals(2000, entry.getEndYearInt());
+    }
+
+    @Test
+    @DisplayName("空年份：getStartYearInt 回退 1，getEndYearInt 回退 9999")
+    void shouldFallbackEmptyYearToBoundary() {
+        TimelineEntry entry = new TimelineEntry("某地", "", "");
+        assertEquals(1, entry.getStartYearInt());
+        assertEquals(9999, entry.getEndYearInt());
+    }
+
+    @Test
+    @DisplayName("未曾使用：getStartYearInt 回退 1，getEndYearInt 回退 9999")
+    void shouldFallbackNeverUsedToBoundary() {
+        TimelineEntry entry = new TimelineEntry("某地", "未曾使用", "未曾使用");
+        assertEquals(1, entry.getStartYearInt());
+        assertEquals(9999, entry.getEndYearInt());
+    }
+
+    @Test
+    @DisplayName("非数字年份：getStartYearInt 回退 1，getEndYearInt 回退 9999")
+    void shouldFallbackNonNumericToBoundary() {
+        TimelineEntry entry = new TimelineEntry("某地", "abc", "xyz");
+        assertEquals(1, entry.getStartYearInt());
+        assertEquals(9999, entry.getEndYearInt());
+    }
+
+    @Test
+    @DisplayName("null 年份（构造器转空串）：getStartYearInt 回退 1，getEndYearInt 回退 9999")
+    void shouldFallbackNullToBoundary() {
+        TimelineEntry entry = new TimelineEntry("某地", null, null);
+        assertEquals(1, entry.getStartYearInt());
+        assertEquals(9999, entry.getEndYearInt());
+    }
+
+    @Test
+    @DisplayName("getStartYearInt 永不小于 1：coversYear(0) 必为 false")
+    void startYearIntNeverBelowOne() {
+        TimelineEntry entry = new TimelineEntry("某地", "", "");
+        assertTrue(entry.getStartYearInt() >= 1);
+        assertFalse(entry.coversYear(0));
     }
 }

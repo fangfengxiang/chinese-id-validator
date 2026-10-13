@@ -25,12 +25,6 @@ public final class AddressResolver {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    /** 时间线年份下界回退值（当 startYear 缺失/无法解析时使用，对应 {@link TimelineEntry#DEFAULT_START_YEAR}） */
-    private static final int MIN_TIMELINE_YEAR = 1;
-
-    /** 时间线年份上界回退值（当 endYear 缺失/无法解析时使用，表示无上界，对应 {@link TimelineEntry#DEFAULT_END_YEAR}） */
-    private static final int MAX_TIMELINE_YEAR = 9999;
-
     private AddressResolver() {}
 
     /**
@@ -82,16 +76,12 @@ public final class AddressResolver {
             return handleLegacyCode(codeStr);
         }
 
-        // 3. 时间线年份匹配
+        // 3. 时间线年份匹配（年份边界解析收归 TimelineEntry，避免重复逻辑）
         String address = "";
         int year = parseYear(birthdayCode);
 
         for (TimelineEntry entry : timeline) {
-            // 各条目独立匹配年份：空 startYear 表示无下界（取 MIN_TIMELINE_YEAR），
-            // 空 endYear 表示无上界（取 MAX_TIMELINE_YEAR），不跨条目继承。
-            int startY = parseYearSafe(entry.getStartYear(), MIN_TIMELINE_YEAR);
-            int endY = parseYearSafe(entry.getEndYear(), MAX_TIMELINE_YEAR);
-            if (year >= startY && year <= endY) {
+            if (entry.coversYear(year)) {
                 address = entry.getAddress();
                 break;
             }
@@ -100,13 +90,13 @@ public final class AddressResolver {
         // 4. 非严格模式回退：取距查询年份最近的条目（每条都评估，非固定取某条）
         if (address.isEmpty() && !strict && !timeline.isEmpty()) {
             TimelineEntry nearest = timeline.get(0);
-            int sY0 = parseYearSafe(nearest.getStartYear(), MIN_TIMELINE_YEAR);
-            int eY0 = parseYearSafe(nearest.getEndYear(), MAX_TIMELINE_YEAR);
+            int sY0 = nearest.getStartYearInt();
+            int eY0 = nearest.getEndYearInt();
             int minDist = (year < sY0) ? (sY0 - year) : (year > eY0) ? (year - eY0) : 0;
             for (int i = 1; i < timeline.size(); i++) {
                 TimelineEntry entry = timeline.get(i);
-                int sY = parseYearSafe(entry.getStartYear(), MIN_TIMELINE_YEAR);
-                int eY = parseYearSafe(entry.getEndYear(), MAX_TIMELINE_YEAR);
+                int sY = entry.getStartYearInt();
+                int eY = entry.getEndYearInt();
                 int dist = (year < sY) ? (sY - year) : (year > eY) ? (year - eY) : 0;
                 if (dist < minDist) {
                     minDist = dist;
@@ -149,14 +139,10 @@ public final class AddressResolver {
         if (birthdayCode == null || birthdayCode.length() < 4) {
             return 0;
         }
-        return parseYearSafe(birthdayCode.substring(0, 4), 0);
-    }
-
-    private static int parseYearSafe(String yearStr, int defaultValue) {
         try {
-            return Integer.parseInt(yearStr);
+            return Integer.parseInt(birthdayCode.substring(0, 4));
         } catch (NumberFormatException e) {
-            return defaultValue;
+            return 0;
         }
     }
 }
