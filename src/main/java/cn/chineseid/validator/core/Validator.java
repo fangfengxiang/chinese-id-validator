@@ -3,7 +3,7 @@ package cn.chineseid.validator.core;
 import cn.chineseid.validator.model.IdCode;
 import cn.chineseid.validator.util.AddressResolver;
 import java.time.LocalDate;
-import java.time.Year;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
@@ -14,6 +14,22 @@ import java.time.format.ResolverStyle;
 public final class Validator {
 
     private static final int MIN_YEAR = 1800;
+
+    /**
+     * 中国标准时间对应的时区。
+     *
+     * <p>公民身份号码中的出生日期是身份登记的日历日期，
+     * 不包含时区信息，也不需要进行时区转换。
+     *
+     * <p>本类库在判断出生日期是否晚于当前日期时，
+     * 统一采用中国标准时间作为业务日期基准，
+     * 避免服务器部署在不同时区时产生不同的校验结果。
+     *
+     * <p>该规则属于本类库的校验政策，不修改 JVM 默认时区，
+     * 也不会影响宿主应用的时间处理。
+     */
+    private static final ZoneId CHINA_STANDARD_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
 
@@ -41,8 +57,17 @@ public final class Validator {
     }
 
     /**
-     * 校验出生日期码。
-     * 年份范围 [1800, 当前年]，且日期格式合法。
+     * 校验身份证号码中的出生日期。
+     *
+     * <p>出生日期必须满足：
+     * <ol>
+     *   <li>符合 uuuuMMdd 格式且日期真实存在（含闰年校验）
+     *   <li>出生年份不早于 1800 年
+     *   <li>出生日期不晚于中国标准时间下的当前日期
+     * </ol>
+     *
+     * <p>出生日期本身不进行时区转换。
+     * 仅在获取用于比较的当前日期时使用中国标准时间。
      *
      * @param birthdayCode 8 位生日码（YYYYMMDD）
      * @return true 如果日期合法
@@ -51,22 +76,10 @@ public final class Validator {
         if (birthdayCode == null || birthdayCode.length() != 8) {
             return false;
         }
-        int year;
         try {
-            year = Integer.parseInt(birthdayCode.substring(0, 4));
-        } catch (NumberFormatException e) {
-            return false;
-        }
-        if (year < MIN_YEAR) {
-            return false;
-        }
-        int currentYear = Year.now().getValue();
-        if (year > currentYear) {
-            return false;
-        }
-        try {
-            LocalDate.parse(birthdayCode, DATE_FORMATTER);
-            return true;
+            LocalDate birthday = LocalDate.parse(birthdayCode, DATE_FORMATTER);
+            LocalDate currentDateInChina = LocalDate.now(CHINA_STANDARD_TIME_ZONE);
+            return birthday.getYear() >= MIN_YEAR && !birthday.isAfter(currentDateInChina);
         } catch (DateTimeParseException e) {
             return false;
         }

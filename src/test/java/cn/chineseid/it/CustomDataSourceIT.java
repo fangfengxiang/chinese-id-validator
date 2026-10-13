@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
  *   <li>MERGE 模式：总是查自定义，与内置合并，自定义优先
  *   <li>初始化生命周期：重复初始化、null 参数校验
  *   <li>异常传播：自定义数据源抛异常时包装为 IdValidatorException
+ *   <li>异常边界：数据配置错误向上传播，输入错误返回 false（不误判、不吞异常）
  *   <li>查询成本契约：基础校验优先（零数据源调用）、legacy 推断查询次数上界
  * </ol>
  */
@@ -264,6 +265,37 @@ class CustomDataSourceIT {
                     IdValidator.isStrictValid(id);
                 },
                 "isStrictValid 路径数据源异常应包装为 IdValidatorException");
+    }
+
+    // ==================== 异常边界 ====================
+
+    @Test
+    @DisplayName("自定义时间线 startYear > endYear：isValid 抛出 IllegalArgumentException（配置错误不误判为号码非法）")
+    void shouldPropagateConfigErrorWhenCustomTimelineRangeInverted() {
+        CustomDataSource source = new CustomTestSource(
+                Collections.emptyMap(),
+                Collections.singletonMap(
+                        MISSING_CODE, Collections.singletonList(new TimelineEntry("测试区", "2025", "2020"))));
+        IdValidator.initialize(source, MergeMode.MERGE);
+
+        // 基础信息合法的号码才会到达地址码校验，从而触发时间线边界规范化
+        String id = buildValidId(MISSING_CODE, "19900307");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    IdValidator.isValid(id, false);
+                },
+                "数据配置错误应向调用方传播，不应被捕获后误判为号码非法");
+    }
+
+    @Test
+    @DisplayName("号码格式错误：即使数据源故障也返回 false（输入错误不经数据源查询）")
+    void shouldReturnFalseForMalformedIdEvenWhenSourceFails() {
+        IdValidator.initialize(newFailingSource(), MergeMode.MERGE);
+
+        assertFalse(IdValidator.isValid("12345", false), "长度非法应返回 false");
+        assertFalse(IdValidator.isValid(null, false), "null 应返回 false");
     }
 
     // ==================== 查询成本契约（MERGE 模式） ====================

@@ -4,7 +4,7 @@ import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.TimelineEntry;
 import cn.chineseid.validator.util.StringUtil;
 import java.time.LocalDate;
-import java.time.Year;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -23,12 +23,26 @@ public final class BirthdayCodeGenerator {
     private static final int MAX_MONTH = 12;
     private static final int MAX_DAY_RANDOM = 28;
     private static final int MAX_DAY = 31;
+
+    /**
+     * 中国标准时间对应的时区。
+     *
+     * <p>与 {@code Validator.checkBirthdayCode} 的业务日期基准保持一致：
+     * 生成的生日不得晚于中国标准时间下的当前日期，
+     * 否则生成的假号无法通过本库自身的校验。
+     */
+    private static final ZoneId CHINA_STANDARD_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private BirthdayCodeGenerator() {}
 
     /**
      * 生成生日码。
+     *
+     * <p>超出范围的字段替换为随机值；组合结果若晚于中国标准时间下的当前日期
+     * （未来生日无法通过 {@code Validator.checkBirthdayCode}），年份回退一年，
+     * 与"超范围即替换"的设计一致。
      *
      * @param addressCode 地址码（6 位字符串）
      * @param address     地址名称（用于匹配时间线条目）
@@ -82,6 +96,21 @@ public final class BirthdayCodeGenerator {
             result = yearStr + monthStr + dayStr;
         }
 
+        // 随机填充可能组合出当前年内的未来日期（如随机到当前年的未来月份），
+        // 未来生日将被 Validator.checkBirthdayCode 拒绝。
+        // 落在未来时年份回退一年（与本生成器"超范围即替换"的设计一致），
+        // 保证生成的假号自身可通过校验。
+        LocalDate todayInChina = LocalDate.now(CHINA_STANDARD_TIME_ZONE);
+        if (isValidDate(result) && LocalDate.parse(result, DATE_FORMATTER).isAfter(todayInChina)) {
+            yearStr = String.valueOf(todayInChina.getYear() - 1);
+            result = yearStr + monthStr + dayStr;
+            if (!isValidDate(result)) {
+                // 闰日回退：2 月 29 日落到非闰年
+                dayStr = "28";
+                result = yearStr + monthStr + dayStr;
+            }
+        }
+
         return result;
     }
 
@@ -90,7 +119,7 @@ public final class BirthdayCodeGenerator {
      */
     private static String datePipelineHandle(String date, String category) {
         int dateInt = parseIntSafe(date, 0);
-        int currentYear = Year.now().getValue();
+        int currentYear = LocalDate.now(CHINA_STANDARD_TIME_ZONE).getYear();
 
         switch (category) {
             case "year":

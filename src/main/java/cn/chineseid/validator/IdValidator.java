@@ -47,19 +47,27 @@ public final class IdValidator {
     // ==================== 验证 API ====================
 
     /**
-     * 验证身份证号合法性。
+     * 验证中国居民身份证号码。
+     *
+     * <p>号码格式非法或领域校验不通过时返回 false。
+     *
+     * <p><b>异常语义</b>：数据源故障（{@link IdValidatorException}）、
+     * 数据配置错误（如自定义时间线 startYear &gt; endYear 抛出的
+     * {@link IllegalArgumentException}）属于系统异常，不应转换为号码非法，
+     * 而应向调用方传播。try 块只包围输入解析，不包围领域校验。
      *
      * @param id     身份证号（15 位或 18 位）
      * @param strict true=严格模式（校验地址码），false=宽松模式
      * @return true 如果身份证号合法
      */
     public static boolean isValid(String id, boolean strict) {
+        final IdCode code;
         try {
-            IdCode code = CodeParser.parse(id);
-            return Validator.validate(code, strict);
+            code = CodeParser.parse(id);
         } catch (IllegalArgumentException e) {
             return false;
         }
+        return Validator.validate(code, strict);
     }
 
     /**

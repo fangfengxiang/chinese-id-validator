@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import cn.chineseid.validator.core.Validator;
 import cn.chineseid.validator.generator.BirthdayCodeGenerator;
+import java.time.LocalDate;
 import java.time.Year;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -68,5 +71,25 @@ class BirthdayCodeGeneratorTest {
         String result = BirthdayCodeGenerator.generate("110101", "东城区", null);
         assertEquals(8, result.length());
         assertTrue(Validator.checkBirthdayCode(result), "随机生日码应为合法日期: " + result);
+    }
+
+    @Test
+    @DisplayName("批量随机生成：生日均不晚于中国今天（生成物自身可通过校验）")
+    void shouldNeverGenerateFutureBirthday() {
+        // 随机填充可能组合出当前年内的未来月份（如当前年随机到 12 月），
+        // 未来生日将被 Validator.checkBirthdayCode 拒绝——批量验证该回归不复发
+        for (int i = 0; i < 200; i++) {
+            String result = BirthdayCodeGenerator.generate("110101", "东城区", null);
+            assertTrue(Validator.checkBirthdayCode(result), "生成生日不得晚于中国今天: " + result);
+        }
+    }
+
+    @Test
+    @DisplayName("显式未来生日：年份回退后可通过校验（与超范围替换设计一致）")
+    void shouldFallbackYearForExplicitFutureBirthday() {
+        String tomorrow =
+                LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1).format(DateTimeFormatter.ofPattern("uuuuMMdd"));
+        String result = BirthdayCodeGenerator.generate("110101", "东城区", tomorrow);
+        assertTrue(Validator.checkBirthdayCode(result), "未来生日回退后应可通过校验: " + result);
     }
 }

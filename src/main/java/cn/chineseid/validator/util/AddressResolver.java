@@ -2,7 +2,8 @@ package cn.chineseid.validator.util;
 
 import cn.chineseid.validator.data.DataProvider;
 import cn.chineseid.validator.model.TimelineEntry;
-import java.time.Year;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +33,21 @@ public final class AddressResolver {
      * 只要该地址码的时间线在身份证时代内被使用过，即为有效。
      */
     private static final int ID_CARD_ERA_START_YEAR = 1985;
+
+    /**
+     * 中国标准时间对应的时区。
+     *
+     * <p>行政区划时间线用于中国居民身份证号码的地址码校验。
+     * 现有校验规则以当前年份作为时间线上界，
+     * 因此统一采用中国标准时间获取当前年份，
+     * 保证不同服务器部署环境下的判断结果一致。
+     *
+     * <p>这只是本类库的时间边界政策，
+     * 不表示行政区划有效性由身份证签发当天决定。
+     *
+     * <p>不会修改 JVM 默认时区或宿主应用的时间设置。
+     */
+    private static final ZoneId CHINA_STANDARD_TIME_ZONE = ZoneId.of("Asia/Shanghai");
 
     /** 历史后缀：市辖区（01） */
     private static final String LEGACY_SUFFIX_CITY_DISTRICT = "01";
@@ -115,9 +131,9 @@ public final class AddressResolver {
             return false;
         }
 
-        int currentYear = Year.now().getValue();
+        int currentYearInChina = LocalDate.now(CHINA_STANDARD_TIME_ZONE).getYear();
         for (TimelineEntry entry : timeline) {
-            if (entry.intersectsRange(ID_CARD_ERA_START_YEAR, currentYear)) {
+            if (entry.intersectsRange(ID_CARD_ERA_START_YEAR, currentYearInChina)) {
                 return true;
             }
         }

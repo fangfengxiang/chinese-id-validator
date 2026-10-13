@@ -254,8 +254,8 @@ class YearBoundaryInheritanceTest {
     class P2_InvalidYearRange {
 
         @Test
-        @DisplayName("自定义数据源 start>end 时 isValid 返回 false（异常被捕获）")
-        void isValidReturnsFalseWhenStartGreaterThanEnd() {
+        @DisplayName("自定义数据源 start>end 时 isValid 抛 IllegalArgumentException（配置错误不误判为号码非法）")
+        void isValidThrowsWhenStartGreaterThanEnd() {
             List<TimelineEntry> timeline = Collections.singletonList(new TimelineEntry("异常区", "2000", "1990"));
 
             CustomDataSource source =
@@ -263,9 +263,13 @@ class YearBoundaryInheritanceTest {
             IdValidator.initialize(source, MergeMode.MERGE);
 
             // start=2000 > end=1990 → normalizeBoundaries 抛 IllegalArgumentException
-            // isValid 的 try-catch 捕获后返回 false
-            assertFalse(
-                    IdValidator.isValid(buildValidId(110999, "20200101"), false), "start>end 非法区间应使 isValid 返回 false");
+            // isValid 只捕获输入解析异常，数据配置错误属于系统异常，向调用方传播
+            IllegalArgumentException ex = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> IdValidator.isValid(buildValidId(110999, "20200101"), false),
+                    "start>end 非法区间应使 isValid 抛 IllegalArgumentException");
+            assertTrue(ex.getMessage().contains("start=2000"), "异常消息应包含 start=2000");
+            assertTrue(ex.getMessage().contains("end=1990"), "异常消息应包含 end=1990");
         }
 
         @Test
