@@ -1,4 +1,4 @@
-# Chinese ID Validator
+# Chinese ID Validator（身份证一要素校验器）
 
 ![Java](https://img.shields.io/badge/Java-8%2B-orange.svg)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.fangfengxiang/chinese-id-validator)](https://central.sonatype.com/artifact/io.github.fangfengxiang/chinese-id-validator)
